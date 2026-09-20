@@ -386,7 +386,6 @@
       <div class="id-name" id="id-name">Not signed in</div>
       <div class="id-meta" id="id-meta">Choose a profile</div>
     </div>
-    <span class="id-access" id="id-streak" style="margin-left:auto;background:rgba(232,163,61,.28);display:none"></span>
     <span class="id-access" id="id-access">Standard access</span>
     <button class="switch-btn" id="change-pw-btn">Change password</button>
     <button class="switch-btn" id="switch-btn">Switch profile</button>
@@ -488,7 +487,6 @@
       <p class="lead">In order to assess the value AI is bringing to 180DC Bath and improve our strategy, we need to assess the impact it is having on our productivity while being aware of its environmental costs.</p>
       <p class="lead" style="margin-top:10px">Since we are using different tools across different platforms, it is vital that you put in the time to log your uses of AI. Simply write what you used it for and fill in the specified details and this will feed through into our dashboard below.</p>
       <p class="lead" style="margin-top:10px">Feel free to also have a look at Recent Use Cases to get inspiration of what you could do next.</p>
-      <button class="btn" id="open-report" style="margin-top:14px">Download client report template</button>
     </div>
 
     <div class="grid two-col" style="margin-bottom:18px;align-items:stretch">
@@ -528,7 +526,6 @@
         <form class="submit-form" id="log-form">
           <input type="text" id="lf-hp" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" aria-hidden="true">
           <div><label>What did you use AI for?</label><textarea id="lf-usecase" maxlength="800" placeholder="e.g. Synthesised 4 research reports into a structured market analysis for the client's fundraising strategy..." required></textarea></div>
-          <button type="button" class="btn ghost" id="lf-estimate" style="justify-self:start">Estimate impact</button>
           <div class="chips" id="lf-estimate-result" style="display:none"></div>
           <div class="row2">
             <div><label>Project</label><select id="lf-project"></select></div>
@@ -537,6 +534,9 @@
           <div><label>Task type</label><select id="lf-task"></select></div>
           <button type="submit" class="btn" style="justify-self:start">Log this use case</button>
         </form>
+        <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
+          <button class="btn ghost" id="open-report">Download client report template</button>
+        </div>
       </div>
 
       <div class="card chart-card">
@@ -1391,6 +1391,7 @@ function offerToSavePassword(form, username, password, displayName){
 }
 function login(p){
   currentUser = p;
+  renderLogs();
   $("#id-name").textContent = p.name;
   $("#id-meta").textContent = roleLine(p);
   $("#id-access").textContent = p.admin ? "Admin access" : "Standard access";
@@ -1599,8 +1600,12 @@ function renderDonut(){
 }
 
 /* ============ Log Impact ============ */
+let showAllLogs = false;
 function renderLogs(){
-  $("#log-list").innerHTML = LOGS.slice(0,6).map(l=>`
+  const admin = !!(typeof currentUser !== "undefined" && currentUser && currentUser.admin);
+  const rows = LOGS.map((l,i)=>({l,i}));
+  const shown = admin && showAllLogs ? rows : rows.slice(0,6);
+  $("#log-list").innerHTML = shown.map(({l,i})=>`
     <div style="padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-sm)">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <b style="font-size:13.5px">${l.name}</b><span class="note">${l.date}</span>
@@ -1608,8 +1613,19 @@ function renderLogs(){
       <div class="note" style="margin-top:2px">${l.project} · ${l.tool||"Tool not specified"} · ${l.task||"Task not specified"}</div>
       ${l.useCase ? `<div style="margin-top:6px;font-size:13.5px;color:var(--ink)">${escHtml(l.useCase)}</div>` : ""}
       <div style="margin-top:6px;font-size:13px;color:var(--ink-2)">Saved ~${l.minutes} min · 💧 ~${l.water} mL · 🌫 ~${l.co2.toFixed(1)} g CO₂e</div>
-    </div>`).join("");
+      ${admin ? `<div style="margin-top:8px"><button class="btn ghost danger" style="padding:5px 14px;font-size:12px" data-del-log="${i}">Delete</button></div>` : ""}
+    </div>`).join("")
+    + (admin && LOGS.length > 6 ? `<button class="btn ghost" id="toggle-all-logs" style="justify-self:start">${showAllLogs ? "Show fewer" : `Show all (${LOGS.length})`}</button>` : "");
 }
+$("#log-list").addEventListener("click", e=>{
+  if(e.target.closest("#toggle-all-logs")){ showAllLogs = !showAllLogs; renderLogs(); return; }
+  const b = e.target.closest("[data-del-log]"); if(!b) return;
+  const l = LOGS[+b.dataset.delLog]; if(!l) return;
+  if(!confirm(`Delete ${l.name}'s use case${l.useCase ? ` "${l.useCase.slice(0,60)}"` : ""}? This can't be undone.`)) return;
+  LOGS.splice(+b.dataset.delLog, 1);
+  postToSheet("deleteLog", { Name:l.name, "Use case":l.useCase||"", Project:l.project, Tool:l.tool||"", Task:l.task||"", Minutes:l.minutes });
+  renderLogs(); toast("Use case deleted");
+});
 function estimateFor(text){
   const est = classify(text);
   return { minutes: est.effortMin, water: Math.round(est.waterMl), co2: +est.carbonG.toFixed(1) };
@@ -1641,16 +1657,20 @@ $("#save-tools").addEventListener("click", ()=>{
   renderToolsDonut();
   toast(`Saved tools for ${project}`);
 });
-$("#lf-estimate").addEventListener("click", ()=>{
+/* Estimate as soon as they pause typing (or paste). */
+let estimateTimer;
+function showEstimate(){
   const text = $("#lf-usecase").value.trim();
-  if(!text){ toast("Paste the prompt or describe the use case first"); return; }
+  const box = $("#lf-estimate-result");
+  if(text.length < 8){ box.style.display = "none"; return; }
   const e = estimateFor(text);
-  $("#lf-estimate-result").innerHTML = `
+  box.innerHTML = `
     <span class="tag" style="background:var(--wash);color:var(--green-dk)">⏱ ~${e.minutes} min saved</span>
     <span class="tag" style="background:#EAF4FB;color:var(--water)">💧 ~${e.water} mL water</span>
     <span class="tag" style="background:#F3F0EA;color:var(--carbon)">🌫 ~${e.co2} g CO₂e</span>`;
-  $("#lf-estimate-result").style.display = "flex";
-});
+  box.style.display = "flex";
+}
+$("#lf-usecase").addEventListener("input", ()=>{ clearTimeout(estimateTimer); estimateTimer = setTimeout(showEstimate, 600); });
 $("#log-form").addEventListener("submit", e=>{
   e.preventDefault();
   if($("#lf-hp").value.trim()){ return; }
@@ -1675,7 +1695,7 @@ const STREAK_TIERS = [
   { min:0, emoji:"🌱", label:"Not logged yet this cycle" },
   { min:1, emoji:"🌱", label:"Getting started" },
   { min:3, emoji:"🔥", label:"On a roll" },
-  { min:6, emoji:"⭐", label:"AI Impact Champion" },
+  { min:6, emoji:"⭐", label:"AI Champion" },
 ];
 const STREAK_MEM = {};
 function getStreak(name){
@@ -1699,8 +1719,6 @@ function renderStreak(){
   $("#streak-hint").textContent = n===0 ? "Log your first use case to start your streak."
     : next ? `${next.min-n} more to reach ${next.emoji} ${next.label}.`
     : "You're at the top tier this cycle, nice work.";
-  $("#id-streak").style.display = n>0 ? "" : "none";
-  $("#id-streak").textContent = `${tier.emoji} ${n} logged`;
 }
 function bumpStreak(name){
   if(!name || name==="Anonymous") return;

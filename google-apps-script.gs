@@ -20,6 +20,9 @@ function doGet(e) {
 
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
+  if (data.type === "deleteLog") {
+    return json(deleteLog(data.fields || {}));
+  }
   if (data.type === "vote") {
     return json(changeVotes(data.fields || {}));
   }
@@ -122,6 +125,26 @@ function changeVotes(m) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Deletes one row from the Logs tab. Matched on Name, Use case, Project,
+ * Tool, Task and Minutes (the first identical row is removed).
+ */
+function deleteLog(m) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Logs");
+  if (!sheet) return { ok: true, found: false };
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const cell = (row, h) => { const c = headers.indexOf(h); return c < 0 ? "" : String(row[c]); };
+  const keys = ["Name", "Use case", "Project", "Tool", "Task", "Minutes"];
+  for (let i = 1; i < values.length; i++) {
+    if (keys.every(k => cell(values[i], k) === String(m[k] === undefined ? "" : m[k]))) {
+      sheet.deleteRow(i + 1);
+      return { ok: true, found: true };
+    }
+  }
+  return { ok: true, found: false };
 }
 
 function trashFiles(cell) {
