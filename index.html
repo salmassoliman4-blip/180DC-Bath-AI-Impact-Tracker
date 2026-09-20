@@ -299,6 +299,10 @@
   .review-card .rc-role { font-size: 12px; color: var(--muted); margin-left: 8px; font-weight: 600; }
   .review-card .rc-prompt { font-family: var(--f-mono); font-size: 12.5px; background: var(--wash); border-radius: 8px; padding: 10px 12px; margin: 9px 0; color: var(--ink-2); }
   .review-card .rc-ach { font-size: 13px; color: var(--ink-2); }
+  .review-card .rc-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .review-card .rc-actions .btn { padding: 7px 16px; font-size: 12.5px; }
+  .btn.ghost.danger { color: var(--coral); }
+  .btn.ghost.danger:hover { border-color: var(--coral); background: rgba(151,36,35,.06); }
   .review-card .rc-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .file-dl { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--green-dk); background: #fff; border: 1.5px solid var(--line); border-radius: 999px; padding: 6px 12px; text-decoration: none; }
   a.file-dl:hover { border-color: var(--green); background: var(--wash); }
@@ -624,6 +628,10 @@
         <p class="lead" style="font-size:14px;margin-top:6px">Compare every submission side by side to decide the winner. Peer upvotes are advisory, not binding. When you have chosen, download the branch's standardised award slide template and fill it in with the winner's details yourself.</p>
         <button class="btn" id="open-award-report" style="margin-top:14px">Download award slide template</button>
       </div>
+      <div class="subtabs" id="review-mode" style="margin-bottom:16px">
+        <button data-mode="active" class="active">Active</button>
+        <button data-mode="archived" id="review-mode-archived">Archived</button>
+      </div>
       <div class="grid" id="review-list" style="gap:14px"></div>
     </div>
   </section>
@@ -946,6 +954,11 @@ async function loadSharedData(){
     })).reverse();
     LOGS.unshift(...fetchedLogs);
     SUBMISSIONS.unshift(...fetchedSubmissions);
+    ARCHIVED.unshift(...(data.archive||[]).map(r=>({
+      name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
+      achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
+      pct: +r.Pct, votes: 1, files: parseFilesCell(r.Files), archivedAt: formatSheetDate(r["Archived at"])
+    })).reverse());
     renderLogs(); renderNominees(); renderReview();
   }catch(e){ /* offline or misconfigured, keep showing local/sample data */ }
 }
@@ -1012,23 +1025,9 @@ const WEEKLY_LOGS = [
    against a fixed 10-minute allowance for writing the prompt and reviewing
    the output, so a session that saved 6 hours for 10 minutes of AI work
    reads as ~97% faster than doing it by hand. See pctIncrease(). */
-const SUBMISSIONS = [
-  { name:"Tom Harper", role:"Senior Consultant", project:"Dorothy House Hospice",
-    prompt:"Here are 12 interview transcripts. Extract the recurring themes, tag each quote by theme, and summarise the top five needs the client should act on.",
-    achievement:"Built a reusable interview-analysis template the whole branch now uses. Cut transcript analysis from a full day to about an hour.",
-    task:"interview theme extraction",
-    hours:6, water:"~0.3 L", co2:"~18 g", pct:97, votes:14, files:["interview-template.pptx","before-after.pdf"] },
-  { name:"Grace Whitmore", role:"Consultant", project:"Bath City Farm",
-    prompt:"Turn this 30-page grant guidance PDF into a one-page plain-English eligibility checklist for the client's front-line staff.",
-    achievement:"Client staff can now self-check eligibility in minutes. The checklist has been reused for two further grants.",
-    task:"grant eligibility checklist creation",
-    hours:4, water:"~0.2 L", co2:"~11 g", pct:96, votes:11, files:["grant-checklist.pdf"] },
-  { name:"Leo Mensah", role:"Consultant", project:"Genesis Trust",
-    prompt:"Argue the client's counter-case against our top three recommendations, then tell us where each recommendation is weakest.",
-    achievement:"Stress-tested our recommendations before the client could. Two were sharpened as a result.",
-    task:"recommendation stress-testing",
-    hours:3, water:"~0.15 L", co2:"~8 g", pct:95, votes:9, files:[] },
-];
+const SUBMISSIONS = [];
+const ARCHIVED = [];
+let reviewMode = "active";
 function pctIncrease(minutes){ return Math.round((minutes/(minutes+10))*100); }
 /* Short task phrase for a new nomination's prompt, used to fill in the
    "why it won" slide template. Falls back to "this task" if nothing matches. */
@@ -1819,16 +1818,56 @@ $("#award-form").addEventListener("submit", async e=>{
   }catch(err){ /* keep the optimistic local entry */ }
 });
 
+/* Archive / delete / restore a nomination (admin Review tab). The sheet row is
+   matched on name + prompt + achievement, so this works before and after a refresh. */
+$("#review-mode").addEventListener("click", e=>{
+  const b = e.target.closest("[data-mode]"); if(!b) return;
+  reviewMode = b.dataset.mode; renderReview();
+});
+$("#review-list").addEventListener("click", e=>{
+  const btn = e.target.closest("[data-archive],[data-delete],[data-restore],[data-purge]");
+  if(!btn) return;
+  const action = ["archive","delete","restore","purge"].find(a=>btn.dataset[a] !== undefined);
+  const list = (action==="restore"||action==="purge") ? ARCHIVED : SUBMISSIONS;
+  const s = list[+btn.dataset[action]]; if(!s) return;
+  const msg = {
+    archive:`Archive ${s.name}'s nomination? It moves to the Archive tab of your Sheet and can be restored.`,
+    delete:`Permanently delete ${s.name}'s nomination and its attached files? This can't be undone.`,
+    restore:`Restore ${s.name}'s nomination to the active list?`,
+    purge:`Permanently delete ${s.name}'s archived nomination and its attached files? This can't be undone.`
+  }[action];
+  if(!confirm(msg)) return;
+  list.splice(+btn.dataset[action], 1);
+  if(action==="archive") ARCHIVED.unshift({...s, archivedAt:"Today"});
+  if(action==="restore") SUBMISSIONS.unshift(s);
+  postToSheet(action, { Name:s.name, Prompt:s.prompt, Achievement:s.achievement });
+  renderNominees(); renderReview();
+  toast({archive:"Nomination archived", delete:"Nomination deleted", restore:"Nomination restored", purge:"Nomination deleted"}[action]);
+});
+
 /* Review & award (admin) */
 function renderReview(){
-  $("#review-list").innerHTML = SUBMISSIONS.map(s=>`
+  const archived = reviewMode === "archived";
+  const list = archived ? ARCHIVED : SUBMISSIONS;
+  $$("#review-mode button").forEach(b=>b.classList.toggle("active", b.dataset.mode===reviewMode));
+  $("#review-mode-archived").textContent = `Archived (${ARCHIVED.length})`;
+  if(!list.length){
+    $("#review-list").innerHTML = `<div class="card"><p class="note">${archived ? "No archived nominations." : "No nominations yet this round."}</p></div>`;
+    return;
+  }
+  $("#review-list").innerHTML = list.map((s,i)=>`
     <div class="card review-card">
       <div class="rc-main">
-        <span class="rc-name">${s.name}</span><span class="rc-role">${s.role} · ${s.project}</span>
+        <span class="rc-name">${s.name}</span><span class="rc-role">${s.role} · ${s.project}${archived && s.archivedAt ? ` · archived ${s.archivedAt}` : ""}</span>
         <div class="rc-prompt">"${s.prompt}"</div>
         <div class="rc-ach">${s.achievement}</div>
         <div class="rc-meta">▲ ${s.votes} upvotes · saved ~${s.hours}h (~${s.pct}% faster) · 💧 ${s.water} · 🌫 ${s.co2}</div>
         <div class="rc-files">${fileLinksHtml(s.files)}</div>
+        <div class="rc-actions">
+          ${archived
+            ? `<button class="btn ghost" data-restore="${i}">Restore</button><button class="btn ghost danger" data-purge="${i}">Delete</button>`
+            : `<button class="btn ghost" data-archive="${i}">Archive</button><button class="btn ghost danger" data-delete="${i}">Delete</button>`}
+        </div>
       </div>
     </div>`).join("");
 }
