@@ -299,6 +299,10 @@
   .review-card .rc-role { font-size: 12px; color: var(--muted); margin-left: 8px; font-weight: 600; }
   .review-card .rc-prompt { font-family: var(--f-mono); font-size: 12.5px; background: var(--wash); border-radius: 8px; padding: 10px 12px; margin: 9px 0; color: var(--ink-2); }
   .review-card .rc-ach { font-size: 13px; color: var(--ink-2); }
+  .review-card .rc-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .file-dl { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--green-dk); background: #fff; border: 1.5px solid var(--line); border-radius: 999px; padding: 6px 12px; text-decoration: none; }
+  a.file-dl:hover { border-color: var(--green); background: var(--wash); }
+  .file-dl.none { color: var(--muted); font-weight: 600; }
   .review-card .rc-meta { font-size: 12px; color: var(--muted); font-family: var(--f-mono); margin-top: 8px; }
 
   /* ---------- Reference groups ---------- */
@@ -331,6 +335,8 @@
 </style>
 </head>
 <body>
+
+<iframe name="pw-save-frame" title="" aria-hidden="true" tabindex="-1" style="position:absolute;width:0;height:0;border:0"></iframe>
 
 <div class="cookie-banner" id="cookie-banner">
   <p>This tool stores your login locally in your browser and shares submitted use cases and nominations with the branch via a Google Sheet, neither of which use cookies. With your consent, we'd also like to use analytics cookies to understand how the tool is used. See our <a href="privacy.html">privacy policy</a> for details.</p>
@@ -598,7 +604,7 @@
             <div><label>Project</label><select id="sf-project"></select></div>
             <div><label>The prompt you used</label><textarea id="sf-prompt" maxlength="2000" placeholder="Paste the exact prompt..." required></textarea></div>
             <div><label>What it achieved</label><textarea id="sf-impact" maxlength="1000" placeholder="What did it save? What was the outcome for the client?" required></textarea></div>
-            <div><label>Attach evidence (PPT, PDF or documents)</label><input id="sf-file" type="file" accept=".ppt,.pptx,.pdf,.doc,.docx,.png,.jpg,.jpeg" multiple><p class="note" style="margin-top:6px">Attach the deck, before and after, or a screenshot. You can add more than one file.</p></div>
+            <div><label>Attach evidence (PPT, PDF or documents)</label><input id="sf-file" type="file" accept=".ppt,.pptx,.pdf,.doc,.docx,.png,.jpg,.jpeg" multiple><p class="note" style="margin-top:6px">Attach the deck, before and after, or a screenshot. Up to 5 files, 10MB each.</p></div>
             <button type="submit" class="btn" style="justify-self:start">Submit nomination</button>
           </form>
         </div>
@@ -874,13 +880,47 @@ const TASK_TYPES = ["Research and synthesis", "Report drafting", "Data and analy
    the script to deploy, and the setup steps sent alongside it. */
 const SHEETS_API_URL = "https://script.google.com/macros/s/AKfycbyViEtso6u40jG5PJ3r_ORDPnC7GeXQ0z1WXra5Xh65OqPmHVhnyQI_cOP3VtSE9MgShw/exec";
 
-function postToSheet(type, fields){
+function postToSheet(type, fields, attachments){
   if(!SHEETS_API_URL) return;
   fetch(SHEETS_API_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({ type, fields })
+    body: JSON.stringify({ type, fields, attachments })
   }).catch(()=>{ /* offline or misconfigured, keep the optimistic local update */ });
+}
+
+
+/* Evidence files: the sheet's Files column holds a JSON list of {name, url}
+   (older rows may just be comma-separated names, which have no link). */
+const MAX_FILE_MB = 10, MAX_TOTAL_MB = 20;
+function parseFilesCell(v){
+  if(!v) return [];
+  try{ const a = JSON.parse(v); if(Array.isArray(a)) return a.filter(f=>f&&f.name); }catch(e){}
+  return String(v).split(",").map(x=>x.trim()).filter(Boolean).map(name=>({name, url:null}));
+}
+function fileObj(f){ return typeof f === "string" ? {name:f, url:null} : f; }
+function escHtml(t){ return String(t).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function safeUrl(u){
+  if(!u || !/^(https:\/\/|blob:)/.test(u)) return null;
+  const m = u.match(/^https:\/\/drive\.google\.com\/file\/d\/([\w-]+)/);
+  return m ? `https://drive.google.com/uc?export=download&id=${m[1]}` : u;
+}
+function readAsBase64(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(String(r.result).split(",")[1] || "");
+    r.onerror = ()=> reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+function fileLinksHtml(files){
+  if(!files || !files.length) return `<span class="note">No files attached</span>`;
+  return files.map(fileObj).map(f=>{
+    const u = safeUrl(f.url);
+    return u
+      ? `<a class="file-dl" href="${escHtml(u)}" target="_blank" rel="noopener" download="${escHtml(f.name)}">⬇ ${escHtml(f.name)}</a>`
+      : `<span class="file-dl none" title="This file was submitted before downloads were added">${escHtml(f.name)}</span>`;
+  }).join("");
 }
 
 const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -902,7 +942,7 @@ async function loadSharedData(){
     const fetchedSubmissions = (data.submissions||[]).map(r=>({
       name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
       achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
-      pct: +r.Pct, votes: 1, files: r.Files ? String(r.Files).split(",").map(s=>s.trim()).filter(Boolean) : []
+      pct: +r.Pct, votes: 1, files: parseFilesCell(r.Files)
     })).reverse();
     LOGS.unshift(...fetchedLogs);
     SUBMISSIONS.unshift(...fetchedSubmissions);
@@ -1245,7 +1285,7 @@ function renderLogin(){
     sub.textContent = "Enter your password to continue.";
     el.innerHTML = header + `
       <form class="submit-form" id="login-pw-form">
-        <div><label>Username</label><input name="username" value="${username}" readonly autocomplete="username"></div>
+        <div><label>Username</label><input type="text" id="login-user-input" name="username" value="${username}" autocomplete="username" autocapitalize="off" spellcheck="false" oninput="this.value='${username}'"></div>
         <div><label>Password</label><input type="password" id="login-pw-input" name="password" autocomplete="current-password"></div>
         <div id="login-pw-error" style="color:#972423;font-size:12.5px" hidden>Incorrect password. Try again, or ask Salma for a reset link.</div>
         <button class="btn" type="submit" style="width:100%">Log in</button>
@@ -1302,6 +1342,7 @@ $("#profiles").addEventListener("submit", e=>{
     if($("#login-pw-input").value === passwordFor(username, p.name)){
       clearAttempts(username);
       const firstLogin = isFirstLogin(username);
+      offerToSavePassword(e.target, username, $("#login-pw-input").value, p.name);
       login(p);
       if(firstLogin){ markLoggedIn(username); openChangePasswordModal(true); }
     } else {
@@ -1324,6 +1365,21 @@ $("#profiles").addEventListener("submit", e=>{
     renderLogin();
   }
 });
+/* Prompt the browser's own "Save password?" after a successful sign-in.
+   Chrome/Edge: Credential Management API. Safari/Firefox: they only offer
+   after a real form submit, so post the form into a hidden iframe (about:blank,
+   so nothing is sent anywhere). */
+function offerToSavePassword(form, username, password, displayName){
+  try{
+    if(window.PasswordCredential && navigator.credentials){
+      navigator.credentials.store(new PasswordCredential({ id:username, password, name:displayName }));
+    }
+  }catch(e){}
+  try{
+    form.target = "pw-save-frame"; form.action = "about:blank"; form.method = "post";
+    HTMLFormElement.prototype.submit.call(form);
+  }catch(e){}
+}
 function login(p){
   currentUser = p;
   $("#id-name").textContent = p.name;
@@ -1738,10 +1794,15 @@ function renderNominees(){
     <p class="note" style="margin-top:8px">Saved ~${n.hours}h, an est. ${n.pct}% productivity increase on this task</p></div>`).join("");
 }
 $("#nominees").addEventListener("click", e=>{ const b=e.target.closest(".vote"); if(!b) return; SUBMISSIONS[+b.dataset.i].votes++; renderNominees(); renderReview(); toast("Thanks, vote counted"); });
-$("#award-form").addEventListener("submit", e=>{
+$("#award-form").addEventListener("submit", async e=>{
   e.preventDefault();
   if($("#sf-hp").value.trim()){ return; }
-  const files = [...$("#sf-file").files].map(f=>f.name);
+  const picked = [...$("#sf-file").files];
+  if(picked.length > 5){ toast("Please attach up to 5 files"); return; }
+  const tooBig = picked.find(f=>f.size > MAX_FILE_MB*1024*1024);
+  if(tooBig){ toast(`${tooBig.name} is over ${MAX_FILE_MB}MB, please attach a smaller file`); return; }
+  if(picked.reduce((a,f)=>a+f.size,0) > MAX_TOTAL_MB*1024*1024){ toast(`Attachments are over ${MAX_TOTAL_MB}MB in total`); return; }
+  const files = picked.map(f=>({ name:f.name, url:URL.createObjectURL(f) }));
   const prompt = $("#sf-prompt").value;
   const est = estimateFor(prompt);
   const name = $("#sf-name").value || "Anonymous", role = $("#sf-role").value, project = $("#sf-project").value;
@@ -1749,10 +1810,13 @@ $("#award-form").addEventListener("submit", e=>{
   const hours = +(est.minutes/60).toFixed(1), water = `~${(est.water/1000).toFixed(2)} L`, co2 = `~${Math.round(est.co2)} g`;
   const pct = pctIncrease(est.minutes);
   SUBMISSIONS.unshift({ name, role, project, prompt, achievement, task, hours, water, co2, pct, votes:1, files });
-  postToSheet("submission", { Name:name, Role:role, Project:project, Prompt:prompt, Achievement:achievement, Task:task, Hours:hours, Water:water, CO2:co2, Pct:pct, Files:files.join(", ") });
   renderNominees(); renderReview();
   $("#sf-prompt").value=""; $("#sf-impact").value=""; $("#sf-file").value="";
   toast(files.length?`Nomination submitted with ${files.length} file(s)`:"Nomination submitted");
+  try{
+    const attachments = await Promise.all(picked.map(async f=>({ name:f.name, mime:f.type||"application/octet-stream", data:await readAsBase64(f) })));
+    postToSheet("submission", { Name:name, Role:role, Project:project, Prompt:prompt, Achievement:achievement, Task:task, Hours:hours, Water:water, CO2:co2, Pct:pct, Files:"" }, attachments);
+  }catch(err){ /* keep the optimistic local entry */ }
 });
 
 /* Review & award (admin) */
@@ -1763,7 +1827,8 @@ function renderReview(){
         <span class="rc-name">${s.name}</span><span class="rc-role">${s.role} · ${s.project}</span>
         <div class="rc-prompt">"${s.prompt}"</div>
         <div class="rc-ach">${s.achievement}</div>
-        <div class="rc-meta">▲ ${s.votes} upvotes · saved ~${s.hours}h (~${s.pct}% faster) · 💧 ${s.water} · 🌫 ${s.co2}${s.files&&s.files.length?` · 📎 ${s.files.join(", ")}`:" · 📎 no files"}</div>
+        <div class="rc-meta">▲ ${s.votes} upvotes · saved ~${s.hours}h (~${s.pct}% faster) · 💧 ${s.water} · 🌫 ${s.co2}</div>
+        <div class="rc-files">${fileLinksHtml(s.files)}</div>
       </div>
     </div>`).join("");
 }
