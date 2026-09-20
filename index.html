@@ -274,7 +274,9 @@
   .nominee .n-role { font-size: 11.5px; color: var(--muted); }
   .nominee .n-desc { font-size: 13px; color: var(--ink-2); }
   .vote { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid var(--line); background: #fff; color: var(--green-dk); border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 13px; font-family: var(--f-mono); flex: none; white-space: nowrap; }
+  .vote.voted { background: var(--green-dk); border-color: var(--green-dk); color: #fff; }
   .vote:hover { border-color: var(--green); background: var(--wash); }
+  .vote.voted:hover { background: var(--green-dker); border-color: var(--green-dker); }
   .vote:active { transform: scale(.95); transition: transform .1s ease-out; }
 
   .note { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
@@ -931,6 +933,14 @@ function fileLinksHtml(files){
   }).join("");
 }
 
+/* Upvotes live in the Sheet's Votes column (empty counts as 1, the nominee's
+   own vote). Each browser can vote once per nomination; clicking again removes it. */
+function parseVotes(v){ return v === "" || v === undefined || v === null ? 1 : (Number(v) || 0); }
+const VOTES_KEY = "aiTrackerVotes";
+function voteKey(s){ return `${s.name}|${(s.prompt||"").slice(0,80)}|${(s.achievement||"").slice(0,80)}`; }
+function votedSet(){ try{ return new Set(JSON.parse(localStorage.getItem(VOTES_KEY)) || []); }catch(e){ return new Set(); } }
+function saveVoted(set){ try{ localStorage.setItem(VOTES_KEY, JSON.stringify([...set])); }catch(e){} }
+
 const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function formatSheetDate(value){
   const d = new Date(value);
@@ -944,20 +954,20 @@ async function loadSharedData(){
     const res = await fetch(SHEETS_API_URL);
     const data = await res.json();
     const fetchedLogs = (data.logs||[]).map(r=>({
-      name: r.Name, project: r.Project, tool: r.Tool, task: r.Task,
+      name: r.Name, project: r.Project, tool: r.Tool, task: r.Task, useCase: r["Use case"] || "",
       minutes: +r.Minutes, water: +r.Water, co2: +r.CO2, date: formatSheetDate(r.Timestamp)
     })).reverse();
     const fetchedSubmissions = (data.submissions||[]).map(r=>({
       name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
       achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
-      pct: +r.Pct, votes: 1, files: parseFilesCell(r.Files)
+      pct: +r.Pct, votes: parseVotes(r.Votes), files: parseFilesCell(r.Files)
     })).reverse();
     LOGS.unshift(...fetchedLogs);
     SUBMISSIONS.unshift(...fetchedSubmissions);
     ARCHIVED.unshift(...(data.archive||[]).map(r=>({
       name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
       achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
-      pct: +r.Pct, votes: 1, files: parseFilesCell(r.Files), archivedAt: formatSheetDate(r["Archived at"])
+      pct: +r.Pct, votes: parseVotes(r.Votes), files: parseFilesCell(r.Files), archivedAt: formatSheetDate(r["Archived at"])
     })).reverse());
     renderLogs(); renderNominees(); renderReview();
   }catch(e){ /* offline or misconfigured, keep showing local/sample data */ }
@@ -1596,6 +1606,7 @@ function renderLogs(){
         <b style="font-size:13.5px">${l.name}</b><span class="note">${l.date}</span>
       </div>
       <div class="note" style="margin-top:2px">${l.project} · ${l.tool||"Tool not specified"} · ${l.task||"Task not specified"}</div>
+      ${l.useCase ? `<div style="margin-top:6px;font-size:13.5px;color:var(--ink)">${escHtml(l.useCase)}</div>` : ""}
       <div style="margin-top:6px;font-size:13px;color:var(--ink-2)">Saved ~${l.minutes} min · 💧 ~${l.water} mL · 🌫 ~${l.co2.toFixed(1)} g CO₂e</div>
     </div>`).join("");
 }
@@ -1650,8 +1661,8 @@ $("#log-form").addEventListener("submit", e=>{
   const name = mine && mine !== "Not signed in" ? mine : "Anonymous";
   const project = $("#lf-project").value;
   const tool = $("#lf-tool").value, task = $("#lf-task").value;
-  LOGS.unshift({ name, project, tool, task, minutes: est.minutes, water: est.water, co2: est.co2, date:"Today" });
-  postToSheet("log", { Name:name, Project:project, Tool:tool, Task:task, Minutes:est.minutes, Water:est.water, CO2:est.co2 });
+  LOGS.unshift({ name, project, tool, task, useCase: text, minutes: est.minutes, water: est.water, co2: est.co2, date:"Today" });
+  postToSheet("log", { Name:name, Project:project, Tool:tool, Task:task, "Use case":text, Minutes:est.minutes, Water:est.water, CO2:est.co2 });
   const admRow = ADMIN.find(a=>a.proj===project);
   if(admRow) admRow.logs++;
   renderLogs(); renderAdmin(); renderTicker(); bumpStreak(name);
@@ -1788,11 +1799,20 @@ $("#reset-list").addEventListener("click", e=>{
 function renderNominees(){
   $("#nominees").innerHTML = SUBMISSIONS.map((n,i)=>`<div class="card nominee">
     <div class="n-top"><div><div class="n-name">${n.name}</div><div class="n-role">${n.role} · ${n.project}</div></div>
-    <button class="vote" data-i="${i}" title="Upvote this submission">▲ Upvote <span>${n.votes}</span></button></div>
+    <button class="vote${votedSet().has(voteKey(n))?" voted":""}" data-i="${i}" title="${votedSet().has(voteKey(n))?"Click to remove your upvote":"Upvote this submission"}">▲ Upvote <span>${n.votes}</span></button></div>
     <p class="n-desc">${n.achievement}</p>
     <p class="note" style="margin-top:8px">Saved ~${n.hours}h, an est. ${n.pct}% productivity increase on this task</p></div>`).join("");
 }
-$("#nominees").addEventListener("click", e=>{ const b=e.target.closest(".vote"); if(!b) return; SUBMISSIONS[+b.dataset.i].votes++; renderNominees(); renderReview(); toast("Thanks, vote counted"); });
+$("#nominees").addEventListener("click", e=>{
+  const b = e.target.closest(".vote"); if(!b) return;
+  const s = SUBMISSIONS[+b.dataset.i]; if(!s) return;
+  const voted = votedSet(), key = voteKey(s), had = voted.has(key);
+  if(had){ voted.delete(key); s.votes = Math.max(0, s.votes - 1); } else { voted.add(key); s.votes++; }
+  saveVoted(voted);
+  postToSheet("vote", { Name:s.name, Prompt:s.prompt, Achievement:s.achievement, Delta: had ? -1 : 1 });
+  renderNominees(); renderReview();
+  toast(had ? "Upvote removed" : "Thanks, vote counted");
+});
 $("#award-form").addEventListener("submit", async e=>{
   e.preventDefault();
   if($("#sf-hp").value.trim()){ return; }
@@ -1809,12 +1829,13 @@ $("#award-form").addEventListener("submit", async e=>{
   const hours = +(est.minutes/60).toFixed(1), water = `~${(est.water/1000).toFixed(2)} L`, co2 = `~${Math.round(est.co2)} g`;
   const pct = pctIncrease(est.minutes);
   SUBMISSIONS.unshift({ name, role, project, prompt, achievement, task, hours, water, co2, pct, votes:1, files });
+  { const v = votedSet(); v.add(voteKey({ name, prompt, achievement })); saveVoted(v); }
   renderNominees(); renderReview();
   $("#sf-prompt").value=""; $("#sf-impact").value=""; $("#sf-file").value="";
   toast(files.length?`Nomination submitted with ${files.length} file(s)`:"Nomination submitted");
   try{
     const attachments = await Promise.all(picked.map(async f=>({ name:f.name, mime:f.type||"application/octet-stream", data:await readAsBase64(f) })));
-    postToSheet("submission", { Name:name, Role:role, Project:project, Prompt:prompt, Achievement:achievement, Task:task, Hours:hours, Water:water, CO2:co2, Pct:pct, Files:"" }, attachments);
+    postToSheet("submission", { Name:name, Role:role, Project:project, Prompt:prompt, Achievement:achievement, Task:task, Hours:hours, Water:water, CO2:co2, Pct:pct, Votes:1, Files:"" }, attachments);
   }catch(err){ /* keep the optimistic local entry */ }
 });
 

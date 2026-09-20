@@ -20,6 +20,9 @@ function doGet(e) {
 
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
+  if (data.type === "vote") {
+    return json(changeVotes(data.fields || {}));
+  }
   if (data.type === "archive" || data.type === "delete" || data.type === "restore" || data.type === "purge") {
     return json(removeSubmission(data.type, data.fields || {}));
   }
@@ -90,6 +93,35 @@ function removeSubmission(action, match) {
     return { ok: true, found: true };
   }
   return { ok: true, found: false };
+}
+
+/**
+ * Adds or removes one upvote (Delta = 1 or -1) on the matching Submissions
+ * row. Needs a "Votes" column in the Submissions header row; an empty Votes
+ * cell counts as 1 (the nominee's own vote).
+ */
+function changeVotes(m) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Submissions");
+    const values = sheet.getDataRange().getValues();
+    const headers = values[0];
+    const col = h => headers.indexOf(h);
+    const vc = col("Votes");
+    if (vc < 0) return { ok: true, found: false, note: "No Votes column" };
+    const same = (row, h) => String(row[col(h)]) === String(m[h] === undefined ? "" : m[h]);
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      if (!(same(row, "Name") && same(row, "Prompt") && same(row, "Achievement"))) continue;
+      const current = row[vc] === "" ? 1 : Number(row[vc]) || 0;
+      sheet.getRange(i + 1, vc + 1).setValue(Math.max(0, current + (Number(m.Delta) || 0)));
+      return { ok: true, found: true };
+    }
+    return { ok: true, found: false };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function trashFiles(cell) {
