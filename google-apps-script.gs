@@ -8,23 +8,33 @@
  */
 
 const EVIDENCE_FOLDER_NAME = "AI Impact Tracker Evidence";
+const PROJECT_NAMES = ["Bath Mind", "Julian House", "Bath City Farm", "Genesis Trust", "Dorothy House Hospice", "Southside Family Project"];
 
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const logs = readSheet(ss.getSheetByName("Logs"));
   const submissions = readSheet(ss.getSheetByName("Submissions"));
   const archive = readSheet(ss.getSheetByName("Archive"));
-  return ContentService.createTextOutput(JSON.stringify({ logs, submissions, archive }))
+  const tools = readSheet(ss.getSheetByName("Tools"));
+  const winners = readSheet(ss.getSheetByName("Winners"));
+  const governance = readGovernance(ss);
+  return ContentService.createTextOutput(JSON.stringify({ logs, submissions, archive, tools, winners, governance }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
+  if (data.type === "saveTools") {
+    return json(saveTools(data.fields || {}));
+  }
   if (data.type === "deleteLog") {
     return json(deleteLog(data.fields || {}));
   }
   if (data.type === "vote") {
     return json(changeVotes(data.fields || {}));
+  }
+  if (data.type === "award") {
+    return json(awardSubmission(data.fields || {}));
   }
   if (data.type === "archive" || data.type === "delete" || data.type === "restore" || data.type === "purge") {
     return json(removeSubmission(data.type, data.fields || {}));
@@ -99,6 +109,39 @@ function removeSubmission(action, match) {
 }
 
 /**
+ * award: moves a nomination from Submissions to the Winners tab (created
+ * automatically) and stamps the date it was awarded. Files stay in Drive.
+ * "Why it won" is an optional note typed by the exec who pressed Award.
+ */
+function awardSubmission(m) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Submissions");
+  if (!sheet) return { ok: true, found: false };
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const col = h => headers.indexOf(h);
+  const same = (row, h) => String(row[col(h)]) === String(m[h] === undefined ? "" : m[h]);
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    if (!(same(row, "Name") && same(row, "Prompt") && same(row, "Achievement"))) continue;
+    let winners = ss.getSheetByName("Winners");
+    if (!winners) {
+      winners = ss.insertSheet("Winners");
+      winners.appendRow(headers.concat(["Awarded at", "Why it won"]));
+    }
+    const wHeaders = winners.getRange(1, 1, 1, winners.getLastColumn()).getValues()[0];
+    winners.appendRow(wHeaders.map(h => {
+      if (h === "Awarded at") return new Date();
+      if (h === "Why it won") return m.Why || "";
+      return col(h) >= 0 ? row[col(h)] : "";
+    }));
+    sheet.deleteRow(i + 1);
+    return { ok: true, found: true };
+  }
+  return { ok: true, found: false };
+}
+
+/**
  * Adds or removes one upvote (Delta = 1 or -1) on the matching Submissions
  * row. Needs a "Votes" column in the Submissions header row; an empty Votes
  * cell counts as 1 (the nominee's own vote).
@@ -145,6 +188,57 @@ function deleteLog(m) {
     }
   }
   return { ok: true, found: false };
+}
+
+/**
+ * The Governance tab is created automatically. Execs can edit it:
+ *   A: Project, B: Last check-in (a date or any text)
+ *   D2: Cycle start (a date; leave blank to count all logs)
+ *   E2: Cycle length in weeks (default 10)
+ */
+function readGovernance(ss) {
+  let sheet = ss.getSheetByName("Governance");
+  if (!sheet) {
+    sheet = ss.insertSheet("Governance");
+    sheet.getRange(1, 1, 1, 2).setValues([["Project", "Last check-in"]]);
+    sheet.getRange(2, 1, PROJECT_NAMES.length, 1).setValues(PROJECT_NAMES.map(p => [p]));
+    sheet.getRange(1, 4, 1, 2).setValues([["Cycle start", "Cycle length (weeks)"]]);
+    sheet.getRange(2, 5).setValue(10);
+  }
+  const rows = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 2).getValues();
+  const checkins = {};
+  rows.forEach(r => { if (r[0]) checkins[r[0]] = r[1]; });
+  return {
+    checkins: checkins,
+    cycleStart: sheet.getRange(2, 4).getValue(),
+    cycleWeeks: Number(sheet.getRange(2, 5).getValue()) || 10
+  };
+}
+
+/** Saves which AI tools a project says it uses (one row per project on the Tools tab). */
+function saveTools(m) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName("Tools");
+    if (!sheet) {
+      sheet = ss.insertSheet("Tools");
+      sheet.appendRow(["Project", "Tools", "Updated"]);
+    }
+    const values = sheet.getDataRange().getValues();
+    const row = [m.Project, JSON.stringify(m.Tools || []), new Date()];
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0]) === String(m.Project)) {
+        sheet.getRange(i + 1, 1, 1, 3).setValues([row]);
+        return { ok: true };
+      }
+    }
+    sheet.appendRow(row);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function trashFiles(cell) {

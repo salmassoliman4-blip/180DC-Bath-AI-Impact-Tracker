@@ -59,10 +59,10 @@
   .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 
   /* ---------- Login gate ---------- */
-  .login { position: fixed; inset: 0; z-index: 200; padding: 24px; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto;
+  .login { position: fixed; inset: 0; z-index: 200; padding: 24px; display: flex; overflow-y: auto;
     background: radial-gradient(900px 500px at 50% -10%, rgba(127,181,57,.22), transparent 60%), linear-gradient(135deg, #F4F8EF, #E7EEDD); }
   .login.hide { display: none; }
-  .login-card { background: #fff; border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); max-width: 540px; width: 100%; padding: 34px; text-align: center; }
+  .login-card { background: #fff; border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); max-width: 540px; width: 100%; padding: 34px; text-align: center; margin: auto; }
   .login-card > img { height: 104px; width: auto; margin: 0 auto 14px; display: block; }
   .login-card h1 { font-size: 22px; }
   .login-card .sub { color: var(--muted); font-size: 14px; margin-top: 6px; }
@@ -208,6 +208,9 @@
   .stat-row { grid-template-columns: repeat(4, 1fr); }
   .stat { padding: 20px; }
   .stat .big { font-family: var(--f-mono); font-size: 33px; font-weight: 600; color: var(--ink); line-height: 1; }
+  /* Keep "0.20 L · 2.8 g" on one line: shrink the text to fit the card width. */
+  .stat { container-type: inline-size; }
+  #s-env { line-height: 33px; white-space: nowrap; font-size: 22px; font-size: min(33px, calc((100cqw - 4px) / 8.8)); }
   .stat .big .stat-emoji { font-size: 24px; margin-right: 8px; vertical-align: -1px; }
   .stat .lbl { color: var(--muted); font-size: 13px; margin-top: 6px; }
   .stat .trend { font-size: 12px; font-weight: 700; margin-top: 8px; font-family: var(--f-mono); }
@@ -484,9 +487,9 @@
     <div class="sec-head">
       <span class="eyebrow">Self-report your positive impact, unlocked using AI</span>
       <h2>Log Impact</h2>
-      <p class="lead">In order to assess the value AI is bringing to 180DC Bath and improve our strategy, we need to assess the impact it is having on our productivity while being aware of its environmental costs.</p>
-      <p class="lead" style="margin-top:10px">Since we are using different tools across different platforms, it is vital that you put in the time to log your uses of AI. Simply write what you used it for and fill in the specified details and this will feed through into our dashboard below.</p>
-      <p class="lead" style="margin-top:10px">Feel free to also have a look at Recent Use Cases to get inspiration of what you could do next.</p>
+      <p class="lead">In order to assess the value AI is bringing to 180DC Bath and improve our strategy, we need to assess the impact it is having on our productivity, while being aware of its environmental costs.</p>
+      <p class="lead" style="margin-top:10px">Since we are using different tools across different platforms, it is vital that you put in the time to log your use of AI. Simply write what you used it for and fill in the specified details, and this will feed through into our dashboard below.</p>
+      <p class="lead" style="margin-top:10px">Feel free to also have a look at 'Recent Use Cases' to get inspiration for what you could do next.</p>
     </div>
 
     <div class="grid two-col" style="margin-bottom:18px;align-items:stretch">
@@ -513,7 +516,7 @@
 
     <div class="card" id="tools-card" style="margin-bottom:18px">
       <h3 style="font-size:17px;font-weight:600">Which tools does your project use?</h3>
-      <p class="sub" style="color:var(--muted);font-size:13px;margin-bottom:14px">Tell us what your project is actually using. This feeds Governance, the branch-wide tool mix chart there stays illustrative for now regardless of what you save here.</p>
+      <p class="sub" style="color:var(--muted);font-size:13px;margin-bottom:14px">Tell us what your project is actually using. This feeds the branch-wide tool mix chart on the Governance page.</p>
       <div class="chips" id="tool-checks"></div>
       <button class="btn" id="save-tools" style="margin-top:14px">Save for <span id="save-tools-project">your project</span></button>
       <p class="note" style="margin-top:10px" id="tool-status"></p>
@@ -534,22 +537,22 @@
           <div><label>Task type</label><select id="lf-task"></select></div>
           <button type="submit" class="btn" style="justify-self:start">Log this use case</button>
         </form>
-        <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--line)">
-          <button class="btn ghost" id="open-report">Download client report template</button>
-        </div>
       </div>
 
       <div class="card chart-card">
-        <h3>Recent use cases</h3><p class="sub">Most recent first, this cycle</p>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div><h3>Recent use cases</h3><p class="sub">Most recent first, this cycle</p></div>
+          <button class="btn ghost" id="open-report" style="padding:8px 16px;font-size:13px">Download client report template</button>
+        </div>
         <div id="log-list" style="display:grid;gap:10px"></div>
       </div>
     </div>
 
     <div class="grid stat-row" style="margin-bottom:18px">
-      <div class="card stat"><div class="big">642</div><div class="lbl">Est. hours saved, from logs</div><div class="trend up">▲ 9% vs last week</div></div>
-      <div class="card stat"><div class="big">+34%</div><div class="lbl">Avg. reported uplift</div><div class="trend up">▲ 3 pts vs last week</div></div>
-      <div class="card stat"><div class="big">6.4</div><div class="lbl">Equivalent full-time staff freed up (FTE)</div><div class="trend up">▲ 0.3 vs last week</div></div>
-      <div class="card stat"><div class="big">28 L · 1.4 kg</div><div class="lbl">Water and CO₂e, estimated from logs</div><div class="trend down">▲ 5% vs last week, be conscious</div></div>
+      <div class="card stat"><div class="big" id="s-hours">-</div><div class="lbl">Est. hours saved, from logs</div><div class="trend" id="s-hours-t"></div></div>
+      <div class="card stat"><div class="big" id="s-uplift">-</div><div class="lbl">Avg. reported uplift</div><div class="trend" id="s-uplift-t"></div></div>
+      <div class="card stat"><div class="big" id="s-fte">-</div><div class="lbl">Equivalent full-time staff freed up (FTE)</div><div class="trend" id="s-fte-t"></div></div>
+      <div class="card stat"><div class="big" id="s-env">-</div><div class="lbl">Water and CO₂e, estimated from logs</div><div class="trend" id="s-env-t"></div></div>
     </div>
 
     <div class="grid two-col" style="margin-bottom:18px">
@@ -567,9 +570,9 @@
       <div class="card narrative">
         <span class="tagx">For the client conversation</span>
         <h3 style="margin-top:6px">Amplifying impact, yet remaining conscious.</h3>
-        <p class="pull">The branch's use of AI freed up an estimated <b>642 hours</b>. This is equivalent to the time commitment of roughly 6 team members, we spent that additional time focused on conducting even deeper research, and improving the quality of our deliverables.</p>
-        <p>These 642 hours cost us roughly <b>28 litres of water</b> and <b>1.4 kg CO₂e</b>, which are equivalent to a short car journey. This showcases how we have remained conscious of our impact, only focusing on automating high-effort and high-value work.</p>
-        <p class="note">Please note that due to our lack of enterprise tooling, these statistics are based off self-logged data which, despite our best attempts, may not be fully accurate.</p>
+        <p class="pull">The branch's use of AI freed up an estimated <b><span id="n-hours">-</span> hours</b>. This is equivalent to the time commitment of roughly <span id="n-fte">-</span>; we spent that additional time focused on conducting even deeper research and improving the quality of our deliverables.</p>
+        <p>These <span id="n-hours2">-</span> hours cost us roughly <b><span id="n-water">-</span> of water</b> and <b><span id="n-co2">-</span> CO₂e</b>, which are equivalent to <span id="n-car">a short car journey</span>. This showcases how we have remained conscious of our impact, only focusing on automating high-effort and high-value work.</p>
+        <p class="note">Please note that due to our lack of enterprise tooling, these statistics are based on self-logged data which, despite our best attempts, may not be fully accurate.</p>
       </div>
     </div>
   </section>
@@ -577,9 +580,9 @@
   <!-- ============ VIEW 3 - AWARD NOMINATIONS ============ -->
   <section class="view" id="view-awards">
     <div class="sec-head">
-      <span class="eyebrow">Bi-weekly · Best use of AI</span>
+      <span class="eyebrow">Fortnightly · Best use of AI</span>
       <h2>The Bright Prompt Award</h2>
-      <p class="lead">Discover a brilliant and responsible AI use case? Submit it. Every two weeks we celebrate the prompt that saved the most for the least, and share the recipe with the whole branch.</p>
+      <p class="lead">Discover a brilliant and responsible AI use case? Submit it. Every two weeks, we celebrate the prompt that saved the most for the least, and share the recipe with the whole branch.</p>
     </div>
 
     <div class="subtabs" id="award-subtabs" style="display:none">
@@ -590,13 +593,7 @@
     <!-- Sub-panel: Nominate (everyone) -->
     <div class="subpanel active" id="asub-nominate">
       <div class="grid two-col" style="align-items:start">
-        <div class="card winner">
-          <span class="tagx">🏆 Last round's winner</span>
-          <h3>Turning 60 survey responses into a board-ready insight deck</h3>
-          <div class="by">Priya Nadkarni · Engagement Manager · Julian House</div>
-          <div class="promptq">"Cluster these 60 open-text survey answers into themes, quantify each theme, pull three representative quotes per theme, and draft board-ready talking points."</div>
-          <p><b>Why it won:</b> Replaced about 6 hours of manual coding with one structured session (about 0.4 L water, 20 g CO₂e). High effort, high impact, low footprint, exactly the trade we want. The output shaped the client's board recommendation.</p>
-        </div>
+        <div class="card winner" id="winner-card"></div>
 
         <div class="card">
           <h3 style="font-size:19px;margin-bottom:4px;font-weight:600">Submit a prompt</h3>
@@ -618,7 +615,7 @@
 
       <div style="margin:26px 0 12px">
         <h3 style="font-size:18px;font-weight:600">This round's nominees</h3>
-        <p class="note" style="margin-top:6px">▲ is an upvote from the team. The exec team makes the final decision, so the most upvotes does not always win.</p>
+        <p class="note" style="margin-top:6px">▲ is an upvote from the team. The exec team makes the final decision, so the most upvoted submission does not always win.</p>
       </div>
       <div class="grid three-col" id="nominees"></div>
     </div>
@@ -642,9 +639,9 @@
   <section class="view" id="view-admin">
     <div class="sec-head">
       <span class="eyebrow">Admin only</span>
-      <h2>Governing AI Usage Across The Branch</h2>
-      <p class="lead">This tool allows our Executive Team to track AI usage across the branch. It can help us get a sense of projects that consistently use AI for beneficial use cases, projects that may be over using AI, and projects that are not logging their usage frequently.</p>
-      <p class="lead" style="margin-top:10px">This governance tool is based off of self-logged data across the branch. It can help give an indication of our impact, but should not be taken as fully accurate.</p>
+      <h2>Governing AI Usage Across the Branch</h2>
+      <p class="lead">This tool allows our Executive Team to track AI usage across the branch. It can help us get a sense of projects that consistently use AI for beneficial use cases, projects that may be overusing AI, and projects that are not logging their usage frequently.</p>
+      <p class="lead" style="margin-top:10px">This governance tool is based on self-logged data across the branch. It can help give an indication of our impact, but should not be taken as fully accurate.</p>
     </div>
 
     <div class="grid stat-row" style="margin-bottom:18px">
@@ -858,23 +855,7 @@ const REF_TASKS = [
   { name:"Sprint instructions for consultants", cat:"Instructions", group:"Planning", prompt:"Draft sprint instructions for the consultants, including due date, task overview and sources.", why:"Standardises instructions quickly, so consultants get a clear brief.", effortPct:50, impactPct:60 },
 ];
 
-const PROD_PROJECTS = [
-  { name:"Julian House", pct:48 }, { name:"Bath Mind", pct:41 }, { name:"Dorothy House", pct:37 },
-  { name:"Genesis Trust", pct:31 }, { name:"Bath City Farm", pct:26 }, { name:"Southside Family", pct:22 },
-];
-const PROD_MEMBERS = [
-  { name:"Priya N. (EM)", hrs:74 }, { name:"Tom H. (Snr)", hrs:61 }, { name:"Aisha K. (Snr)", hrs:58 },
-  { name:"Leo M. (Con)", hrs:44 }, { name:"Grace W. (Con)", hrs:39 }, { name:"Sam O. (Exec)", hrs:33 },
-];
-const PROD_TASKS = [
-  { name:"Research and synthesis", hrs:214, c:"#2B6327" },
-  { name:"Report drafting", hrs:168, c:"#7FB539" },
-  { name:"Data and analysis", hrs:132, c:"#A9CD7C" },
-  { name:"Slides and comms", hrs:81, c:"#E8A33D" },
-  { name:"Other", hrs:47, c:"#9AA69D" },
-];
-/* Branch-wide water use this cycle, self-reported. */
-const CYCLE_WATER_L = 18.9;
+
 
 /* Tools and task types available in the self-log form. No single tool covers everyone,
    so this list is deliberately broad and includes "Other" and an enterprise-grade Copilot option. */
@@ -949,53 +930,36 @@ function formatSheetDate(value){
 }
 
 async function loadSharedData(){
-  if(!SHEETS_API_URL) return;
+  if(!SHEETS_API_URL){ renderAll(); return; }
   try{
     const res = await fetch(SHEETS_API_URL);
     const data = await res.json();
-    const fetchedLogs = (data.logs||[]).map(r=>({
+    LOGS.splice(0, LOGS.length, ...(data.logs||[]).map(r=>({
       name: r.Name, project: r.Project, tool: r.Tool, task: r.Task, useCase: r["Use case"] || "",
-      minutes: +r.Minutes, water: +r.Water, co2: +r.CO2, date: formatSheetDate(r.Timestamp)
-    })).reverse();
-    const fetchedSubmissions = (data.submissions||[]).map(r=>({
+      minutes: +r.Minutes, water: +r.Water, co2: +r.CO2, ts: new Date(r.Timestamp), date: formatSheetDate(r.Timestamp)
+    })).reverse());
+    const mapSub = r=>({
       name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
       achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
       pct: +r.Pct, votes: parseVotes(r.Votes), files: parseFilesCell(r.Files)
-    })).reverse();
-    LOGS.unshift(...fetchedLogs);
-    SUBMISSIONS.unshift(...fetchedSubmissions);
-    ARCHIVED.unshift(...(data.archive||[]).map(r=>({
-      name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
-      achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
-      pct: +r.Pct, votes: parseVotes(r.Votes), files: parseFilesCell(r.Files), archivedAt: formatSheetDate(r["Archived at"])
-    })).reverse());
-    renderLogs(); renderNominees(); renderReview();
-  }catch(e){ /* offline or misconfigured, keep showing local/sample data */ }
+    });
+    SUBMISSIONS.splice(0, SUBMISSIONS.length, ...(data.submissions||[]).map(mapSub).reverse());
+    ARCHIVED.splice(0, ARCHIVED.length, ...(data.archive||[]).map(r=>({ ...mapSub(r), archivedAt: formatSheetDate(r["Archived at"]) })).reverse());
+    WINNERS.splice(0, WINNERS.length, ...(data.winners||[]).map(r=>({ ...mapSub(r), awardedAt: formatSheetDate(r["Awarded at"]), why: r["Why it won"] || "" })));
+    Object.keys(PROJECT_TOOLS).forEach(k=>delete PROJECT_TOOLS[k]);
+    (data.tools||[]).forEach(r=>{ try{ PROJECT_TOOLS[r.Project] = JSON.parse(r.Tools) || []; }catch(e){} });
+    const g = data.governance || {};
+    GOV.checkins = g.checkins || {};
+    GOV.cycleWeeks = +g.cycleWeeks || 10;
+    GOV.cycleStart = g.cycleStart ? new Date(g.cycleStart) : null;
+    if(GOV.cycleStart && isNaN(GOV.cycleStart)) GOV.cycleStart = null;
+    renderAll();
+  }catch(e){ renderAll(); }
 }
 
-const LOGS = [
-  { name:"Priya Nadkarni", project:"Julian House", tool:"Personal premium subscription", task:"Research and synthesis", minutes:70, water:62, co2:0.9, date:"29 Aug" },
-  { name:"Tom Harper", project:"Dorothy House Hospice", tool:"Claude (free)", task:"Report drafting", minutes:55, water:48, co2:0.7, date:"28 Aug" },
-  { name:"Aisha Khan", project:"Bath Mind", tool:"ChatGPT (free)", task:"Data and analysis", minutes:40, water:35, co2:0.5, date:"27 Aug" },
-  { name:"Leo Mensah", project:"Genesis Trust", tool:"Copilot (enterprise-grade)", task:"Slides and comms", minutes:25, water:20, co2:0.3, date:"26 Aug" },
-  { name:"Grace Whitmore", project:"Bath City Farm", tool:"Gemini (free)", task:"Report drafting", minutes:35, water:30, co2:0.4, date:"25 Aug" },
-];
+const LOGS = [];
 
-/* Project-level governance status. Prompts, tokens and litres can no longer be
-   metered centrally, so this tracks what we can actually see: how much the
-   team is logging, and whether guardrail self-certification is current. */
-/* hours/water/co2 are cycle-to-date aggregates, split across projects by
-   share of logs this cycle — hours sums to 642 and water to CYCLE_WATER_L,
-   matching the branch-wide totals shown above. */
-const ADMIN = [
-  { proj:"Julian House", lead:"Priya N.", logs:16, hours:177, water:5.2, co2:0.61, lastCheck:"3 Aug", status:"flag" },
-  { proj:"Bath Mind", lead:"Aisha K.", logs:12, hours:133, water:3.9, co2:0.46, lastCheck:"14 Aug", status:"mon" },
-  { proj:"Dorothy House Hospice", lead:"Tom H.", logs:10, hours:111, water:3.3, co2:0.39, lastCheck:"22 Aug", status:"ok" },
-  { proj:"Genesis Trust", lead:"Leo M.", logs:8, hours:89, water:2.6, co2:0.30, lastCheck:"19 Aug", status:"ok" },
-  { proj:"Bath City Farm", lead:"Grace W.", logs:7, hours:77, water:2.3, co2:0.27, lastCheck:"20 Aug", status:"ok" },
-  { proj:"Southside Family Project", lead:"Sam O.", logs:5, hours:55, water:1.6, co2:0.19, lastCheck:"25 Aug", status:"ok" },
-];
-const certMeta = { complete:{c:"s-ok",l:"Complete"}, due:{c:"s-mon",l:"Due this week"}, overdue:{c:"s-flag",l:"Overdue"} };
+const certMeta = { complete:{c:"s-ok",l:"Complete"}, missing:{c:"s-flag",l:"Not logged"} };
 
 /* Colour per tool for the tool-mix donut, which is now computed live from
    PROJECT_TOOLS (what projects have actually told us on Log Impact) rather
@@ -1008,28 +972,9 @@ const TOOL_COLORS = {
   "Gemini (free)": "#E8A33D",
   "Other": "#9AA69D",
 };
-/* Share of each role who has completed guardrail self-certification this cycle */
-const CERT = [
-  { name:"Engagement Managers", v:100 }, { name:"Senior Consultants", v:88 },
-  { name:"Consultants", v:74 },
-];
 
-/* This week's logging cadence per project, split from the cycle (10-week)
-   total, plus this week's own productivity and environmental figures — a
-   different signal from the cycle-to-date totals in the tracker above.
-   Checked against the branch's 1-log-per-project-per-week minimum, and
-   flagged separately when a project's footprint looks heavy for how little
-   productivity it bought this week. Self-certification is also tracked here
-   rather than in the cycle table, since it's assessed weekly, not once per
-   cycle. */
-const WEEKLY_LOGS = [
-  { proj:"Julian House", lastWeek:11, thisWeek:5, hours:9.5, water:1.1, co2:0.13, cert:"overdue" },
-  { proj:"Bath Mind", lastWeek:9, thisWeek:3, hours:5.2, water:0.6, co2:0.07, cert:"due" },
-  { proj:"Dorothy House Hospice", lastWeek:7, thisWeek:3, hours:4.6, water:0.5, co2:0.06, cert:"complete" },
-  { proj:"Genesis Trust", lastWeek:6, thisWeek:2, hours:0.6, water:1.4, co2:0.16, cert:"complete" },
-  { proj:"Bath City Farm", lastWeek:5, thisWeek:2, hours:2.1, water:0.3, co2:0.04, cert:"complete" },
-  { proj:"Southside Family Project", lastWeek:5, thisWeek:0, hours:0, water:0, co2:0, cert:"complete" },
-];
+
+
 
 /* pct is the estimated productivity increase for the session: minutes saved
    against a fixed 10-minute allowance for writing the prompt and reviewing
@@ -1037,6 +982,7 @@ const WEEKLY_LOGS = [
    reads as ~97% faster than doing it by hand. See pctIncrease(). */
 const SUBMISSIONS = [];
 const ARCHIVED = [];
+const WINNERS = [];
 let reviewMode = "active";
 function pctIncrease(minutes){ return Math.round((minutes/(minutes+10))*100); }
 /* Short task phrase for a new nomination's prompt, used to fill in the
@@ -1115,7 +1061,7 @@ function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("sh
    Paste the GA4 Measurement ID (e.g. "G-XXXXXXXXXX") here once you've created
    the property in Google Analytics. Analytics only loads if the visitor has
    actively consented, never by default. */
-const GA_MEASUREMENT_ID = "";
+const GA_MEASUREMENT_ID = "G-B3V1JRMKDH";
 const ANALYTICS_CONSENT_KEY = "aiTrackerAnalyticsConsent";
 
 function loadAnalytics(){
@@ -1592,11 +1538,54 @@ function renderHBars(el, data, {suffix="", max=null}={}){
     <span class="val">${d.val}${suffix}</span></div>`).join("");
 }
 function renderDonut(){
-  const total = PROD_TASKS.reduce((a,b)=>a+b.hrs,0);
+  const data = hoursByTask(cycleLogs());
+  const total = +data.reduce((a,t)=>a+t.hrs,0).toFixed(1);
   let acc=0; const R=54, C=2*Math.PI*R;
-  const segs = PROD_TASKS.map(t=>{ const dash=(t.hrs/total)*C; const s=`<circle cx="70" cy="70" r="${R}" fill="none" stroke="${t.c}" stroke-width="20" stroke-dasharray="${dash} ${C-dash}" stroke-dashoffset="${-acc}" transform="rotate(-90 70 70)"/>`; acc+=dash; return s; }).join("");
+  const segs = data.map(t=>{ const dash=(t.hrs/total)*C; const seg=`<circle cx="70" cy="70" r="${R}" fill="none" stroke="${TASK_COLORS[t.name]||"#9AA69D"}" stroke-width="20" stroke-dasharray="${dash} ${C-dash}" stroke-dashoffset="${-acc}" transform="rotate(-90 70 70)"/>`; acc+=dash; return seg; }).join("");
   $("#donut").innerHTML = `<svg viewBox="0 0 140 140" style="width:150px"><circle cx="70" cy="70" r="54" fill="none" stroke="#E7EEDD" stroke-width="20"/>${segs}<text x="70" y="66" text-anchor="middle" font-size="24" font-family="IBM Plex Mono" font-weight="600" fill="#28201E">${total}</text><text x="70" y="84" text-anchor="middle" font-size="10" fill="#7A887E" font-family="IBM Plex Mono">hours</text></svg>`;
-  $("#donut-legend").innerHTML = PROD_TASKS.map(t=>`<div class="li"><span class="sw" style="background:${t.c}"></span>${t.name}<span class="n">${t.hrs}h</span></div>`).join("");
+  $("#donut-legend").innerHTML = data.length ? data.map(t=>`<div class="li"><span class="sw" style="background:${TASK_COLORS[t.name]||"#9AA69D"}"></span>${t.name}<span class="n">${t.hrs}h</span></div>`).join("") : `<div class="li" style="color:var(--muted)">No use cases logged yet this cycle.</div>`;
+}
+const ROLE_SHORT = { "Engagement Manager":"EM", "Senior Consultant":"Snr", "Consultant":"Con" };
+function shortPerson(name){
+  const p = PROFILES.find(x=>normName(x.name)===normName(name));
+  const {first,last} = nameParts(name);
+  return `${first}${last && last!==first ? " "+last[0]+"." : ""}${p ? ` (${ROLE_SHORT[p.role]||"Exec"})` : ""}`;
+}
+function setTrend(id, text, good){ const el = $(id); el.textContent = text; el.className = "trend " + (good ? "up" : "down"); }
+function renderLogImpactDash(){
+  const cyc = cycleLogs(), tot = sumLogs(cyc);
+  const tw = sumLogs(LOGS.filter(l=>inRange(l,weekBounds(0)))), lw = sumLogs(LOGS.filter(l=>inRange(l,weekBounds(-1))));
+  const hours = toHours(tot), water = toLitres(tot), co2 = toKilos(tot);
+  $("#s-hours").textContent = hours.toLocaleString();
+  { const c = pctChange(tw.min, lw.min); setTrend("#s-hours-t", c.text, c.dir>=0); }
+  $("#s-uplift").textContent = tot.n ? "+" + Math.round(tot.up/tot.n) + "%" : "-";
+  { const a = tw.n ? Math.round(tw.up/tw.n) : null, b = lw.n ? Math.round(lw.up/lw.n) : null;
+    setTrend("#s-uplift-t", a===null||b===null ? "Needs logs in both weeks" : `${a>=b?"▲":"▼"} ${Math.abs(a-b)} pts vs last week`, a===null||b===null||a>=b); }
+  const fte = +(hours/HOURS_PER_FTE).toFixed(1);
+  $("#s-fte").textContent = fte;
+  { const d = +((tw.min-lw.min)/60/HOURS_PER_FTE).toFixed(1); setTrend("#s-fte-t", `${d<0?"▼":"▲"} ${Math.abs(d)} vs last week`, d>=0); }
+  $("#s-env").textContent = `${fmtL(water)} L · ${fmtCO2(tot.co2)}`;
+  { const c = pctChange(tw.water, lw.water); setTrend("#s-env-t", c.text + (c.dir>0 ? ", be conscious" : ""), c.dir<=0); }
+
+  const byProj = PROJECTS.map(pr=>{ const t = sumLogs(cyc.filter(l=>l.project===pr)); return { name: pr.replace(" Hospice","").replace(" Project",""), val: t.n ? Math.round(t.up/t.n) : 0 }; });
+  renderHBars("#chart-projects", byProj, {suffix:"%", max:100});
+  const byPerson = {};
+  cyc.forEach(l=>{ const k = normName(l.name); (byPerson[k] = byPerson[k] || {name:l.name, min:0}).min += (+l.minutes||0); });
+  const people = Object.values(byPerson).sort((a,b)=>b.min-a.min).slice(0,8).map(p=>({ name:shortPerson(p.name), val:+(p.min/60).toFixed(1) }));
+  if(people.length) renderHBars("#chart-members", people, {suffix:"h"}); else $("#chart-members").innerHTML = `<p class="note">No use cases logged yet this cycle.</p>`;
+  renderDonut();
+
+  $("#n-hours").textContent = hours.toLocaleString();
+  $("#n-hours2").textContent = hours.toLocaleString();
+  $("#n-fte").textContent = fte < 1 ? "under 1 team member" : `${Math.round(fte)} team member${Math.round(fte)===1?"":"s"}`;
+  $("#n-water").textContent = `${fmtL(water)} litres`;
+  $("#n-co2").textContent = fmtCO2(tot.co2);
+  const km = Math.round(co2/0.17);
+  $("#n-car").textContent = km >= 50 ? `a ${km} km car journey` : "a short car journey";
+}
+function renderAll(){
+  renderLogs(); renderNominees(); renderReview(); renderWinner(); renderAdmin(); renderLogImpactDash(); renderTicker(); renderStreak();
+  if(typeof currentUser !== "undefined" && currentUser && !currentUser.admin) renderToolChecks(currentUser.project);
 }
 
 /* ============ Log Impact ============ */
@@ -1605,6 +1594,10 @@ function renderLogs(){
   const admin = !!(typeof currentUser !== "undefined" && currentUser && currentUser.admin);
   const rows = LOGS.map((l,i)=>({l,i}));
   const shown = admin && showAllLogs ? rows : rows.slice(0,6);
+  if(!shown.length){
+    $("#log-list").innerHTML = `<div class="note" style="padding:18px 14px;border:1px dashed var(--line);border-radius:var(--r-sm);text-align:center">No use cases logged yet. Log your first one above and it will show up here.</div>`;
+    return;
+  }
   $("#log-list").innerHTML = shown.map(({l,i})=>`
     <div style="padding:12px 14px;border:1px solid var(--line);border-radius:var(--r-sm)">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -1624,7 +1617,7 @@ $("#log-list").addEventListener("click", e=>{
   if(!confirm(`Delete ${l.name}'s use case${l.useCase ? ` "${l.useCase.slice(0,60)}"` : ""}? This can't be undone.`)) return;
   LOGS.splice(+b.dataset.delLog, 1);
   postToSheet("deleteLog", { Name:l.name, "Use case":l.useCase||"", Project:l.project, Tool:l.tool||"", Task:l.task||"", Minutes:l.minutes });
-  renderLogs(); toast("Use case deleted");
+  renderAll(); toast("Use case deleted");
 });
 function estimateFor(text){
   const est = classify(text);
@@ -1653,6 +1646,7 @@ $("#tool-checks").addEventListener("click", e=>{
 $("#save-tools").addEventListener("click", ()=>{
   const project = $("#save-tools-project").textContent;
   PROJECT_TOOLS[project] = [...selectedTools];
+  postToSheet("saveTools", { Project:project, Tools:[...selectedTools] });
   renderToolStatus(project);
   renderToolsDonut();
   toast(`Saved tools for ${project}`);
@@ -1681,11 +1675,9 @@ $("#log-form").addEventListener("submit", e=>{
   const name = mine && mine !== "Not signed in" ? mine : "Anonymous";
   const project = $("#lf-project").value;
   const tool = $("#lf-tool").value, task = $("#lf-task").value;
-  LOGS.unshift({ name, project, tool, task, useCase: text, minutes: est.minutes, water: est.water, co2: est.co2, date:"Today" });
+  LOGS.unshift({ name, project, tool, task, useCase: text, minutes: est.minutes, water: est.water, co2: est.co2, ts: new Date(), date:"Today" });
   postToSheet("log", { Name:name, Project:project, Tool:tool, Task:task, "Use case":text, Minutes:est.minutes, Water:est.water, CO2:est.co2 });
-  const admRow = ADMIN.find(a=>a.proj===project);
-  if(admRow) admRow.logs++;
-  renderLogs(); renderAdmin(); renderTicker(); bumpStreak(name);
+  renderLogs(); renderAdmin(); renderLogImpactDash(); renderTicker(); renderStreak();
   $("#lf-usecase").value=""; $("#lf-estimate-result").style.display="none";
   toast("Use case logged, thank you");
 });
@@ -1697,14 +1689,9 @@ const STREAK_TIERS = [
   { min:3, emoji:"🔥", label:"On a roll" },
   { min:6, emoji:"⭐", label:"AI Champion" },
 ];
-const STREAK_MEM = {};
-function getStreak(name){
-  try { return +(localStorage.getItem("aiimpact_streak_"+name) ?? STREAK_MEM[name] ?? 0); } catch(e){ return STREAK_MEM[name] || 0; }
-}
-function setStreak(name, n){
-  STREAK_MEM[name] = n;
-  try { localStorage.setItem("aiimpact_streak_"+name, n); } catch(e){}
-}
+/* A person's streak is how many use cases they've logged this cycle, read from the Sheet
+   (so it follows them across devices and can't be lost by clearing the browser). */
+function getStreak(name){ const k = String(name||"").trim().toLowerCase(); return cycleLogs().filter(l=>String(l.name||"").trim().toLowerCase()===k).length; }
 function tierFor(n){ return [...STREAK_TIERS].reverse().find(t=>n>=t.min); }
 function renderStreak(){
   const name = $("#id-name").textContent;
@@ -1720,14 +1707,9 @@ function renderStreak(){
     : next ? `${next.min-n} more to reach ${next.emoji} ${next.label}.`
     : "You're at the top tier this cycle, nice work.";
 }
-function bumpStreak(name){
-  if(!name || name==="Anonymous") return;
-  setStreak(name, getStreak(name)+1);
-  renderStreak();
-}
 const BRANCH_GOAL = 150;
 function renderTicker(){
-  const total = ADMIN.reduce((a,b)=>a+b.logs,0);
+  const total = cycleLogs().length;
   $("#ticker-count").textContent = total.toLocaleString();
   $("#ticker-goal").textContent = BRANCH_GOAL.toLocaleString();
   $("#ticker-bar").style.width = Math.min(100,(total/BRANCH_GOAL)*100)+"%";
@@ -1735,20 +1717,81 @@ function renderTicker(){
 
 /* ============ Admin ============ */
 const statusMeta = { ok:{c:"s-ok",i:"✅",l:"Healthy"}, mon:{c:"s-mon",i:"⚠️",l:"Watch"}, flag:{c:"s-flag",i:"🚩",l:"Needs attention"} };
+
+/* ============ Live numbers, calculated from the Sheet's Logs tab ============
+   Weeks run Monday to Sunday. The cycle is the length set on the Governance tab
+   of the Sheet (default 10 weeks) from its start date (blank counts every log). */
+const GOV = { cycleStart:null, cycleWeeks:10, checkins:{} };
+const HOURS_PER_FTE = 100;
+const TASK_COLORS = { "Research and synthesis":"#2B6327", "Report drafting":"#7FB539", "Data and analysis":"#A9CD7C", "Slides and comms":"#E8A33D", "Other":"#9AA69D", "Not specified":"#C9D2C4" };
+const normName = n => String(n||"").trim().toLowerCase();
+function mondayOf(d){ const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
+function weekBounds(offset){ const s = mondayOf(new Date()); s.setDate(s.getDate()+7*offset); const e = new Date(s); e.setDate(e.getDate()+7); return [s,e]; }
+function inRange(l,[s,e]){ return l.ts instanceof Date && !isNaN(l.ts) && l.ts>=s && l.ts<e; }
+function cycleLogs(){
+  if(!GOV.cycleStart) return LOGS;
+  const s = GOV.cycleStart, e = new Date(s); e.setDate(e.getDate()+7*GOV.cycleWeeks);
+  return LOGS.filter(l=>inRange(l,[s,e]));
+}
+function sumLogs(list){
+  return list.reduce((a,l)=>({ n:a.n+1, min:a.min+(+l.minutes||0), water:a.water+(+l.water||0), co2:a.co2+(+l.co2||0), up:a.up+pctIncrease(+l.minutes||0) }), {n:0,min:0,water:0,co2:0,up:0});
+}
+const toHours = t => +(t.min/60).toFixed(1);
+const toLitres = t => +(t.water/1000).toFixed(2);
+const toKilos = t => +(t.co2/1000).toFixed(2);
+const fmtCO2 = g => g >= 1000 ? `${(g/1000).toFixed(2)} kg` : g >= 10 ? `${Math.round(g)} g` : `${+g.toFixed(1)} g`;
+const fmtL = v => v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2);
+function pctChange(now, prev){
+  if(!prev) return { text: now ? "New this week" : "No logs yet", dir: 0 };
+  const p = Math.round(((now-prev)/prev)*100);
+  return { text: `${p<0?"▼":"▲"} ${Math.abs(p)}% vs last week`, dir: p };
+}
+function projectStats(){
+  const cyc = cycleLogs(), [tw, lw] = [weekBounds(0), weekBounds(-1)];
+  return PROJECTS.map(proj=>{
+    const mine = cyc.filter(l=>l.project===proj);
+    return { proj, cycle:sumLogs(mine), thisWeek:sumLogs(LOGS.filter(l=>l.project===proj && inRange(l,tw))), lastWeek:sumLogs(LOGS.filter(l=>l.project===proj && inRange(l,lw))) };
+  });
+}
+function leadsFor(proj){
+  const names = PROFILES.filter(p=>p.project===proj && p.role==="Engagement Manager").map(p=>{ const {first,last} = nameParts(p.name); return `${first} ${last[0]}.`; });
+  return names.length ? names.join(", ") : "-";
+}
+function checkinFor(proj){
+  const v = GOV.checkins[proj]; if(!v) return "-";
+  const d = new Date(v); return isNaN(d) ? String(v) : formatSheetDate(d);
+}
 function renderAdmin(){
-  $("#admin-table").innerHTML = ADMIN.map(a=>{ const s=statusMeta[a.status];
-    return `<tr><td><b>${a.proj}</b></td><td class="num">${a.logs}</td><td class="num">${a.hours}h</td>
-      <td class="num">${a.water} L</td><td class="num">${a.co2} kg</td><td>${a.lead}</td><td>${a.lastCheck}</td>
+  const stats = projectStats(), cyc = sumLogs(cycleLogs());
+  // Cycle table: status is worked out from logging (none this week and last = needs attention)
+  $("#admin-table").innerHTML = stats.map(st=>{
+    const key = st.thisWeek.n ? "ok" : st.lastWeek.n ? "mon" : "flag", s = statusMeta[key];
+    return `<tr><td><b>${st.proj}</b></td><td class="num">${st.cycle.n}</td><td class="num">${toHours(st.cycle)}h</td>
+      <td class="num">${fmtL(toLitres(st.cycle))} L</td><td class="num">${fmtCO2(st.cycle.co2)}</td><td>${leadsFor(st.proj)}</td><td>${checkinFor(st.proj)}</td>
       <td><span class="status ${s.c}">${s.i} ${s.l}</span></td></tr>`; }).join("");
-  $("#a-logs").textContent = ADMIN.reduce((a,b)=>a+b.logs,0).toLocaleString();
-  $("#a-cert").textContent = WEEKLY_LOGS.filter(w=>w.thisWeek>=1).length + "/" + WEEKLY_LOGS.length;
-  $("#a-prod").textContent = PROD_TASKS.reduce((a,b)=>a+b.hrs,0).toLocaleString() + "h";
-  $("#a-water").textContent = CYCLE_WATER_L.toFixed(1) + " L";
-  renderHBars("#chart-cert", CERT.map(r=>({name:r.name,val:r.v})), {suffix:"%", max:100});
-  renderHBars("#chart-tasks", PROD_TASKS.map(t=>({name:t.name, val:t.hrs, color:t.c})), {suffix:"h"});
+  $("#a-logs").textContent = cyc.n.toLocaleString();
+  $("#a-cert").textContent = stats.filter(st=>st.thisWeek.n>=1).length + "/" + stats.length;
+  $("#a-prod").textContent = toHours(cyc).toLocaleString() + "h";
+  $("#a-water").textContent = fmtL(toLitres(cyc)) + " L";
+  // Impact logged by role, matched by name against the profile list
+  const loggers = new Set(cycleLogs().map(l=>normName(l.name)));
+  const roleRows = ["Engagement Manager","Senior Consultant","Consultant"].map(role=>{
+    const people = PROFILES.filter(p=>!p.admin && p.role===role);
+    const done = people.filter(p=>loggers.has(normName(p.name))).length;
+    return { name: role+"s", val: people.length ? Math.round((done/people.length)*100) : 0 };
+  });
+  renderHBars("#chart-cert", roleRows, {suffix:"%", max:100});
+  const byTask = hoursByTask(cycleLogs());
+  renderHBars("#chart-tasks", byTask.length ? byTask.map(t=>({name:t.name, val:t.hrs, color:TASK_COLORS[t.name]||"#9AA69D"})) : [], {suffix:"h"});
+  if(!byTask.length) $("#chart-tasks").innerHTML = `<p class="note">No use cases logged yet this cycle.</p>`;
   renderToolsDonut();
-  renderWeekly();
+  renderWeekly(stats);
   renderLockedList();
+}
+function hoursByTask(list){
+  const m = {};
+  list.forEach(l=>{ const t = l.task || "Not specified"; m[t] = (m[t]||0) + (+l.minutes||0)/60; });
+  return Object.entries(m).map(([name,h])=>({name, hrs:+h.toFixed(1)})).filter(t=>t.hrs>0).sort((a,b)=>b.hrs-a.hrs);
 }
 function renderLockedList(){
   const attempts = loadAttempts();
@@ -1815,6 +1858,10 @@ $("#reset-list").addEventListener("click", e=>{
 
 /* ============ Awards ============ */
 function renderNominees(){
+  if(!SUBMISSIONS.length){
+    $("#nominees").innerHTML = `<div class="card" style="grid-column:1/-1;text-align:center"><p class="note">No nominations yet this round. Be the first to submit a prompt above.</p></div>`;
+    return;
+  }
   $("#nominees").innerHTML = SUBMISSIONS.map((n,i)=>`<div class="card nominee">
     <div class="n-top"><div><div class="n-name">${n.name}</div><div class="n-role">${n.role} · ${n.project}</div></div>
     <button class="vote${votedSet().has(voteKey(n))?" voted":""}" data-i="${i}" title="${votedSet().has(voteKey(n))?"Click to remove your upvote":"Upvote this submission"}">▲ Upvote <span>${n.votes}</span></button></div>
@@ -1864,6 +1911,18 @@ $("#review-mode").addEventListener("click", e=>{
   reviewMode = b.dataset.mode; renderReview();
 });
 $("#review-list").addEventListener("click", e=>{
+  const awardBtn = e.target.closest("[data-award]");
+  if(awardBtn){
+    const s = SUBMISSIONS[+awardBtn.dataset.award]; if(!s) return;
+    if(!confirm(`Award ${s.name}'s nomination? It becomes the round's winner, the date is recorded, and it moves to the Winners tab of your Sheet.`)) return;
+    const why = prompt("Why did it win? (optional, shown on the winner card)", "") || "";
+    SUBMISSIONS.splice(+awardBtn.dataset.award, 1);
+    WINNERS.push({ ...s, awardedAt: formatSheetDate(new Date()), why });
+    postToSheet("award", { Name:s.name, Prompt:s.prompt, Achievement:s.achievement, Why:why });
+    renderNominees(); renderReview(); renderWinner();
+    toast("Winner awarded");
+    return;
+  }
   const btn = e.target.closest("[data-archive],[data-delete],[data-restore],[data-purge]");
   if(!btn) return;
   const action = ["archive","delete","restore","purge"].find(a=>btn.dataset[a] !== undefined);
@@ -1883,6 +1942,20 @@ $("#review-list").addEventListener("click", e=>{
   renderNominees(); renderReview();
   toast({archive:"Nomination archived", delete:"Nomination deleted", restore:"Nomination restored", purge:"Nomination deleted"}[action]);
 });
+
+/* Last round's winner card: a placeholder until the first award is pressed */
+function renderWinner(){
+  const w = WINNERS[WINNERS.length-1];
+  $("#winner-card").innerHTML = !w
+    ? `<span class="tagx">🏆 Last round's winner</span>
+       <h3>First round winner to be announced</h3>
+       <p>Get your submissions in now! The first Bright Prompt Award goes to the smartest, most responsible use of AI on the branch.</p>`
+    : `<span class="tagx">🏆 Last round's winner${w.awardedAt ? ` · awarded ${escHtml(w.awardedAt)}` : ""}</span>
+       <h3>${escHtml(w.achievement)}</h3>
+       <div class="by">${escHtml(w.name)} · ${escHtml(w.role)} · ${escHtml(w.project)}</div>
+       <div class="promptq">"${escHtml(w.prompt)}"</div>
+       <p>${w.why ? `<b>Why it won:</b> ${escHtml(w.why)} ` : ""}Saved about ${w.hours} hours (about ${escHtml(w.water)} water, ${escHtml(w.co2)} CO₂e).</p>`;
+}
 
 /* Review & award (admin) */
 function renderReview(){
@@ -1905,7 +1978,7 @@ function renderReview(){
         <div class="rc-actions">
           ${archived
             ? `<button class="btn ghost" data-restore="${i}">Restore</button><button class="btn ghost danger" data-purge="${i}">Delete</button>`
-            : `<button class="btn ghost" data-archive="${i}">Archive</button><button class="btn ghost danger" data-delete="${i}">Delete</button>`}
+            : `<button class="btn" data-award="${i}">🏆 Award</button><button class="btn ghost" data-archive="${i}">Archive</button><button class="btn ghost danger" data-delete="${i}">Delete</button>`}
         </div>
       </div>
     </div>`).join("");
@@ -1930,22 +2003,22 @@ $("#open-award-report").addEventListener("click", ()=>{
 
 /* ============ This week's performance table ============ */
 const weeklyStatusMeta = { ok:{c:"s-ok",l:"✅ On track"}, mon:{c:"s-mon",l:"⚠️ High footprint"}, flag:{c:"s-flag",l:"🚩 Not logging"} };
-function renderWeekly(){
-  $("#weekly-table").innerHTML = WEEKLY_LOGS.map(w=>{
-    const notLogging = w.thisWeek < 1;
-    const heavyForLittle = !notLogging && w.hours < 1 && (w.water > 1 || w.co2 > 0.15);
+function renderWeekly(stats){
+  $("#weekly-table").innerHTML = stats.map(st=>{
+    const w = st.thisWeek, hours = toHours(w), water = toLitres(w), co2 = toKilos(w);
+    const notLogging = w.n < 1;
+    const heavyForLittle = !notLogging && hours < 1 && (water > 1 || co2 > 0.15);
     const level = notLogging ? "flag" : heavyForLittle ? "mon" : "ok";
-    const pctChange = Math.round(((w.thisWeek - w.lastWeek) / w.lastWeek) * 100);
-    const pctStr = `${pctChange <= 0 ? "▼" : "▲"} ${Math.abs(pctChange)}%`;
+    const change = !st.lastWeek.n ? (w.n ? "New" : "-") : `${w.n < st.lastWeek.n ? "▼" : "▲"} ${Math.abs(Math.round(((w.n-st.lastWeek.n)/st.lastWeek.n)*100))}%`;
     const meta = weeklyStatusMeta[level];
     const detail = notLogging
-      ? "Below the 1-a-week minimum, worth a quick check-in, they might just not be logging it."
+      ? "Below the 1-a-week minimum. Worth a quick check-in, as they might just not be logging it."
       : heavyForLittle
-      ? "High footprint for a modest productivity boost, worth a look at what's being run through AI here."
+      ? "High footprint for a modest productivity boost. Worth a look at what's being run through AI here."
       : "On track for this week.";
-    const cm = certMeta[w.cert];
-    return `<tr><td><b>${w.proj}</b></td><td class="num">${w.thisWeek}</td><td class="num">${pctStr}</td>
-      <td class="num">${w.hours}h</td><td class="num">${w.water} L</td><td class="num">${w.co2} kg</td>
+    const cm = certMeta[notLogging ? "missing" : "complete"];
+    return `<tr><td><b>${st.proj}</b></td><td class="num">${w.n}</td><td class="num">${change}</td>
+      <td class="num">${hours}h</td><td class="num">${fmtL(water)} L</td><td class="num">${fmtCO2(w.co2)}</td>
       <td><span class="status ${cm.c}">${cm.l}</span></td>
       <td><span class="status ${meta.c}" title="${detail}">${meta.l}</span></td></tr>`;
   }).join("");
@@ -2023,9 +2096,7 @@ function init(){
   fillSelect($("#lf-tool"), TOOLS, "Not specified"); fillSelect($("#lf-task"), TASK_TYPES, "Not specified");
   updateCount();
   renderReference();
-  renderHBars("#chart-projects", PROD_PROJECTS.map(p=>({name:p.name,val:p.pct})), {suffix:"%", max:60});
-  renderHBars("#chart-members", PROD_MEMBERS.map(p=>({name:p.name,val:p.hrs})), {suffix:"h"});
-  renderDonut(); renderLogs(); renderAdmin(); renderNominees(); renderReview(); renderTicker(); renderStreak(); renderResetList();
+  renderResetList();
   loadSharedData();
 }
 init();
