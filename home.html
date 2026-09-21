@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Home · 180DC Bath AI Hub</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Lato:wght@400;700;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --green:#7FB539; --green-dk:#2B6327; --green-lt:#A9CD7C; --wash:#E0F1D2;
+    --ink:#28201E; --ink-2:#28201E; --muted:#64726B;
+    --line:#E2EAD9; --surface:#F4F8EF; --card:#FFFFFF;
+    --r-lg:22px; --r-md:14px;
+    --shadow:0 1px 2px rgba(51,64,58,.05), 0 12px 30px -14px rgba(51,64,58,.20);
+    --shadow-sm:0 1px 2px rgba(51,64,58,.05), 0 6px 16px -10px rgba(51,64,58,.16);
+    --f-display:'Avenir Next','Avenir','Poppins',system-ui,sans-serif;
+    --f-body:'Lato',system-ui,sans-serif;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--f-body); color:var(--ink); background:var(--surface); line-height:1.55; -webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 480px at 88% -12%, rgba(127,181,57,.16), transparent 60%), radial-gradient(900px 480px at -8% 2%, rgba(43,99,39,.10), transparent 55%); background-attachment:fixed; }
+  h1,h2,h3 { font-family:var(--f-display); font-weight:600; line-height:1.2; letter-spacing:-0.005em; margin:0; }
+  p { margin:0; }
+  a { color:inherit; text-decoration:none; }
+  .wrap { max-width:1220px; margin:0 auto; padding:0 24px; }
+
+  .topbar { position:sticky; top:0; z-index:50; background:rgba(255,255,255,.93); backdrop-filter:blur(12px); color:var(--ink); border-bottom:1px solid var(--line); box-shadow:0 4px 20px -18px rgba(51,64,58,.5); }
+  .topbar-inner { max-width:1220px; margin:0 auto; padding:9px 24px; display:flex; align-items:center; gap:20px; }
+  .brand { display:flex; align-items:center; gap:13px; }
+  .brand img.logo { height:50px; width:auto; display:block; }
+  .brand .divider { width:1px; height:34px; background:var(--line); }
+  .brand .toolname { font-family:var(--f-display); font-weight:600; font-size:14px; color:var(--green-dk); line-height:1.1; }
+  .brand .toolname small { display:block; font-size:9.5px; color:var(--muted); font-weight:700; letter-spacing:.16em; text-transform:uppercase; }
+  .nav { display:flex; gap:3px; margin-left:auto; flex-wrap:wrap; }
+  .nav a { background:transparent; color:var(--muted); font-size:13px; font-weight:600; padding:9px 14px; border-radius:999px; transition:.18s; }
+  .nav a:hover { color:var(--green-dk); background:var(--wash); }
+  .nav a.active { color:#fff; background:var(--green-dk); }
+
+  .hero { padding:64px 0 34px; }
+  .eyebrow { font-size:11.5px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--green-dk); font-family:var(--f-body); }
+  .hero h1 { font-size:clamp(29px,3.8vw,44px); font-weight:700; letter-spacing:-0.025em; line-height:1.05; margin:12px 0 14px; }
+  .hero p { font-size:17px; color:var(--ink-2); }
+
+  .btn { display:inline-flex; align-items:center; gap:8px; border:0; border-radius:999px; padding:11px 22px; font-weight:700; font-size:14px; background:var(--green-dk); color:#fff; box-shadow:var(--shadow-sm); transition:.18s; }
+  .btn:hover { filter:brightness(.9); transform:translateY(-1px); }
+  .btn.ghost { background:#fff; color:var(--green-dk); border:1px solid var(--line); box-shadow:none; }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--r-lg); box-shadow:var(--shadow); }
+
+  .copilot { display:grid; grid-template-columns:1fr auto; gap:28px; align-items:center; padding:32px 36px;
+    background:var(--green-dk); color:#fff; border:0; position:relative; overflow:hidden; }
+  .copilot::after { content:""; position:absolute; right:-60px; top:-60px; width:240px; height:240px; border-radius:50%; background:var(--green); opacity:.35; }
+  .copilot .tag { font-family:var(--f-body); font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--wash); }
+  .copilot h2 { color:#fff; font-size:26px; margin:8px 0; }
+  .copilot p { color:#fff; font-size:15px; }
+  .copilot .btn { background:#fff; color:var(--green-dk); position:relative; z-index:1; white-space:nowrap; }
+  .copilot .btn:hover { background:var(--wash); }
+  .copilot .fine { font-size:13px; margin-top:12px; color:rgba(255,255,255,.75); }
+
+  .sec { margin:46px 0 16px; }
+  .sec h2 { font-size:28px; letter-spacing:-0.015em; line-height:1.15; }
+  .sec p { color:var(--muted); font-size:14.5px; margin-top:6px; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
+  .agent { padding:24px; display:flex; flex-direction:column; gap:10px; transition:.18s; }
+  .agent:hover { transform:translateY(-2px); }
+  .agent .top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+  .agent .ico { width:42px; height:42px; border-radius:12px; background:var(--wash); display:grid; place-items:center; font-size:20px; }
+  .pill { font-family:var(--f-body); font-size:11px; letter-spacing:.06em; text-transform:uppercase; padding:4px 10px; border-radius:999px; background:var(--wash); color:var(--green-dk); font-weight:700; }
+  .pill.live { background:var(--wash); color:var(--green-dk); }
+  .agent h3 { font-size:18px; }
+  .agent p { font-size:14px; color:var(--ink-2); }
+  .agent .for { font-size:12.5px; color:var(--muted); margin-top:auto; padding-top:8px; }
+  .agent .go { font-weight:700; font-size:14px; color:var(--green-dk); }
+  .agent.soon { opacity:.92; }
+  .agent.soon .go { color:var(--muted); }
+
+  .tracker { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:26px 32px; margin-top:22px; flex-wrap:wrap; }
+  .tracker > div { flex:1; min-width:260px; }
+  .tracker h3 { font-size:19px; }
+  .tracker p { color:var(--ink-2); font-size:14.5px; margin-top:4px; }
+
+  .footer { text-align:center; color:var(--muted); font-size:12.5px; padding:30px 0 40px; }
+  .footer b { color:var(--ink); }
+  .footer a { color:var(--muted); text-decoration:underline; }
+  .footer a:hover { color:var(--green-dk); }
+  .footer .flinks { margin-top:6px; }
+  .footer .flinks span { margin:0 6px; color:#8B9890; }
+  @media (max-width:720px){ .copilot { grid-template-columns:1fr; padding:26px; } .topbar-inner { flex-wrap:wrap; } .brand .toolname { display:none; } .nav { width:100%; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="home.html"><img class="logo" src="logo-180dc.png" alt="180 Degrees Consulting Bath" /><span class="divider"></span><span class="toolname">AI Hub<small>Bath branch</small></span></a>
+    <nav class="nav">
+      <a class="active" href="home.html">Home</a>
+      <a href="index.html">Impact Tracker</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="eyebrow">180 Degrees Consulting · Bath</span>
+    <h1>Your AI toolkit, all in one place.</h1>
+    <p>This page contains various useful AI-related resources, including the link to sign into Copilot and links to AI Agents which have been built for the branch.</p>
+  </section>
+
+  <!-- Copilot sign-in -->
+  <section class="card copilot">
+    <div>
+      <span class="tag">Start here · Enterprise-grade</span>
+      <h2>Sign in to Microsoft Copilot</h2>
+      <p>Microsoft Copilot is the chosen AI Platform for our organisation. Use it for any project work, including work that may involve client data, as we have enterprise data protection on this platform.</p>
+    </div>
+    <a class="btn" href="https://copilot.microsoft.com/" target="_blank" rel="noopener">Sign in to Copilot ↗</a>
+  </section>
+
+  <!-- Agents -->
+  <div class="sec">
+    <h2>180DC Bath AI agents</h2>
+    <p>Agents built by the Executive Team for regular branch tasks. Each link opens in Copilot and is owned and maintained by the Innovation Director.</p>
+  </div>
+  <section class="grid">
+    <a class="card agent soon" href="#">
+      <div class="top"><div class="ico">🧭</div><span class="pill">Coming soon</span></div>
+      <h3>Understanding 180DC Bath</h3>
+      <p>Answers questions on process, action-title methodology, deliverable templates, where resources live, etc.</p>
+      <div class="for">Built for all roles</div>
+      <span class="go">Link coming soon</span>
+    </a>
+    <a class="card agent soon" href="#">
+      <div class="top"><div class="ico">🔎</div><span class="pill">Coming soon</span></div>
+      <h3>Market Research</h3>
+      <p>Assists you with building an in-depth understanding of different markets.</p>
+      <div class="for">Built for all roles</div>
+      <span class="go">Link coming soon</span>
+    </a>
+    <a class="card agent soon" href="#">
+      <div class="top"><div class="ico">🗺️</div><span class="pill">Coming soon</span></div>
+      <h3>Project Plan Creation Support</h3>
+      <p>Helps EMs create their project plan, splitting the work into various sprints and laying out the milestones. Works for the PowerPoint and Gantt chart templates.</p>
+      <div class="for">Built for EMs</div>
+      <span class="go">Link coming soon</span>
+    </a>
+    <a class="card agent soon" href="#">
+      <div class="top"><div class="ico">📝</div><span class="pill">Coming soon</span></div>
+      <h3>Sprint Instructions for Consultants</h3>
+      <p>Makes it quicker to send instructions to consultants and makes the format more standardised. Includes the due date, task overview and sources.</p>
+      <div class="for">Built for EMs and SCs</div>
+      <span class="go">Link coming soon</span>
+    </a>
+    <a class="card agent soon" href="#">
+      <div class="top"><div class="ico">📊</div><span class="pill">Coming soon</span></div>
+      <h3>Benchmarking</h3>
+      <p>Used for all types of benchmarking, such as benchmarking a client's data against those in their sector.</p>
+      <div class="for">Built for all roles</div>
+      <span class="go">Link coming soon</span>
+    </a>
+  </section>
+
+  <!-- Tracker -->
+  <section class="card tracker">
+    <div>
+      <h3>Used AI today? Log it.</h3>
+      <p>Log your use cases, assess a prompt's footprint and nominate a prompt for the Bright Prompt Award in the Impact Tracker.</p>
+    </div>
+    <a class="btn" href="index.html">Open the Impact Tracker →</a>
+  </section>
+
+  <div class="footer">
+    <b>180 Degrees Consulting · Bath</b> · AI Hub
+    <div class="flinks"><a href="privacy.html">Privacy policy</a><span>·</span><a href="terms.html">Terms &amp; conditions</a></div>
+  </div>
+</main>
+</body>
+</html>
