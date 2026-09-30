@@ -8,7 +8,7 @@
  */
 
 const EVIDENCE_FOLDER_NAME = "AI Impact Tracker Evidence";
-const PROJECT_NAMES = ["Bath Mind", "Julian House", "Bath City Farm", "Genesis Trust", "Dorothy House Hospice", "Southside Family Project"];
+const PROJECT_NAMES = ["CCCYD", "The Alfred Gillett Trust", "KidsOut", "Motivation Africa", "TAFU", "I Can and I Am"];
 
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
