@@ -1120,6 +1120,7 @@ function usernameFor(name){
 }
 function defaultPasswordFor(name){
   if(name === "Guest") return "Guest123";
+  if(name === "Global Leadership Team") return "GLT123";
   const { first, last } = nameParts(name);
   return `${first}${last}2026!`;
 }
@@ -1187,7 +1188,9 @@ function profileCard(p){
   </button>`;
 }
 let loginView = { step:"root", projectIdx:null, profileIdx:null, from:null };
-const GUEST_PROFILE = { name:"Guest", role:"Explore our Impact Tracker", project:"", admin:false };
+const GUEST_PROFILE = { name:"Guest", role:"For Clients and Partners", project:"", admin:false };
+const GLT_PROFILE = { name:"Global Leadership Team", role:"For Global Leadership Team", project:"", admin:true };
+function resolveLoginProfile(idx){ return idx === "guest" ? GUEST_PROFILE : idx === "glt" ? GLT_PROFILE : PROFILES[idx]; }
 function renderLogin(){
   const el = $("#profiles"), sub = $("#login-sub");
   if(loginView.step === "root"){
@@ -1203,9 +1206,14 @@ function renderLogin(){
         <span><span class="pname">Projects</span><br><span class="prole">6 project teams</span></span>
         <span class="chev">›</span>
       </button>
-      <button class="profile-btn big" data-guest="1">
+      <button class="profile-btn big" data-guest="guest">
         <span class="av">👤</span>
-        <span><span class="pname">Guest</span><br><span class="prole">Explore our Impact Tracker</span></span>
+        <span><span class="pname">Guest</span><br><span class="prole">For Clients and Partners</span></span>
+        <span class="chev">›</span>
+      </button>
+      <button class="profile-btn big" data-guest="glt">
+        <span class="av">🌍</span>
+        <span><span class="pname">Guest</span><br><span class="prole">For Global Leadership Team</span></span>
         <span class="chev">›</span>
       </button>`;
   } else if(loginView.step === "exec"){
@@ -1224,7 +1232,7 @@ function renderLogin(){
     sub.textContent = `${proj} team.`;
     el.innerHTML = `<button class="back-btn" data-back="projects">‹ Back</button>` + PROFILES.filter(p=>!p.admin && p.project===proj).map(profileCard).join("");
   } else if(loginView.step === "password"){
-    const p = loginView.profileIdx === "guest" ? GUEST_PROFILE : PROFILES[loginView.profileIdx];
+    const p = resolveLoginProfile(loginView.profileIdx);
     const username = usernameFor(p.name);
     const backTarget = loginView.from === "exec" ? "exec" : loginView.from === "root" ? "root" : loginView.from === "projects" ? "projects" : "project-detail";
     const avatar = p.photo ? `<img class="login-avatar photo" src="${p.photo}" alt="${p.name}">` : `<span class="login-avatar initials">${initials(p.name)}</span>`;
@@ -1290,14 +1298,14 @@ $("#profiles").addEventListener("click", e=>{
   const proj = e.target.closest("[data-project]");
   if(proj){ loginView = { step:"project-detail", projectIdx:+proj.dataset.project, profileIdx:null, from:null }; renderLogin(); return; }
   const guest = e.target.closest("[data-guest]");
-  if(guest){ loginView = { step:"password", profileIdx:"guest", projectIdx:null, from:"root" }; renderLogin(); return; }
+  if(guest){ loginView = { step:"password", profileIdx:guest.dataset.guest, projectIdx:null, from:"root" }; renderLogin(); return; }
   const pbtn = e.target.closest("[data-i]");
   if(pbtn){ loginView = { step:"password", profileIdx:+pbtn.dataset.i, projectIdx:loginView.projectIdx, from:loginView.step }; renderLogin(); }
 });
 $("#profiles").addEventListener("submit", e=>{
   if(e.target.id === "login-pw-form"){
     e.preventDefault();
-    const p = loginView.profileIdx === "guest" ? GUEST_PROFILE : PROFILES[loginView.profileIdx];
+    const p = resolveLoginProfile(loginView.profileIdx);
     const username = usernameFor(p.name);
     if(isLocked(username)) { renderLogin(); return; }
     if($("#login-pw-input").value === passwordFor(username, p.name)){
