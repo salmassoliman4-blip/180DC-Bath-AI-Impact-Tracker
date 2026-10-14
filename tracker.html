@@ -1313,7 +1313,9 @@ async function storePassword(username, newPw, opts){
   if(!saved && res && res.ok === false && res.reason !== "failed") return { ok:false, reason:res.reason };
   ACCT[username] = { salt, hash, attempts:0 };
   const c = loadCache(); c[username] = { salt, hash }; saveCache(c);
-  const lg = loadCreds(); if(username in lg){ delete lg[username]; saveCreds(lg); }
+  const lg = loadCreds();
+  if(saved){ if(username in lg){ delete lg[username]; saveCreds(lg); } }
+  else { lg[username] = newPw; saveCreds(lg); }   // not in the Sheet yet: keep it here so the next sign-in tries again
   if(currentUser && usernameFor(currentUser.name) === username) SESSION_PROOF = proof;
   return { ok:true, saved, proof };
 }
@@ -1352,9 +1354,10 @@ function recordFailedAttempt(username){
   if(ACCT_LOADED) postToSheet("failedAttempt", { Username:username });
 }
 function clearAttempts(username){
+  const had = attemptsFor(username) > 0;     // only tell the Sheet when there is something to clear
   if(ACCT[username]) ACCT[username].attempts = 0;
   const store = loadAttempts(); delete store[username]; saveAttempts(store);
-  if(ACCT_LOADED) postToSheet("clearAttempts", { Username:username });
+  if(had && ACCT_LOADED) postToSheet("clearAttempts", { Username:username });
 }
 let currentUser = null;
 function profileCard(p){
