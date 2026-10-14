@@ -963,10 +963,40 @@ function fileLinksHtml(files){
 /* Upvotes live in the Sheet's Votes column (empty counts as 1, the nominee's
    own vote). Each browser can vote once per nomination; clicking again removes it. */
 function parseVotes(v){ return v === "" || v === undefined || v === null ? 1 : (Number(v) || 0); }
+/* Who has voted for what is kept in the Sheet's VoteLog tab, per person, so
+   "already voted" follows someone to any browser. This browser keeps a copy per
+   person (VOTES_BY_KEY) for when the Sheet can't be reached. VOTES_KEY is the
+   old one-list-per-browser store, moved onto the person at their next sign-in. */
 const VOTES_KEY = "aiTrackerVotes";
+const VOTES_BY_KEY = "aiTrackerVotesBy";
+let MY_VOTES = new Set();
 function voteKey(s){ return `${s.name}|${(s.prompt||"").slice(0,80)}|${(s.achievement||"").slice(0,80)}`; }
-function votedSet(){ try{ return new Set(JSON.parse(localStorage.getItem(VOTES_KEY)) || []); }catch(e){ return new Set(); } }
-function saveVoted(set){ try{ localStorage.setItem(VOTES_KEY, JSON.stringify([...set])); }catch(e){} }
+function voterId(){ return (typeof currentUser !== "undefined" && currentUser) ? usernameFor(currentUser.name) : ""; }
+function loadVotesBy(){ try{ return JSON.parse(localStorage.getItem(VOTES_BY_KEY)) || {}; }catch(e){ return {}; } }
+function votedSet(){ return MY_VOTES; }
+function saveVoted(set){
+  MY_VOTES = set;
+  const who = voterId(); if(!who) return;
+  try{ const by = loadVotesBy(); by[who] = [...set]; localStorage.setItem(VOTES_BY_KEY, JSON.stringify(by)); }catch(e){}
+}
+async function loadMyVotes(){
+  const who = voterId(); if(!who) return;
+  MY_VOTES = new Set(loadVotesBy()[who] || []);
+  renderNominees();
+  if(!SHEETS_API_URL) return;
+  try{
+    const res = await fetch(SHEETS_API_URL + "?view=votes&voter=" + encodeURIComponent(who));
+    const d = await res.json();
+    if(!d || !Array.isArray(d.keys)) return;            // older script: keep this browser's copy
+    const keys = new Set(d.keys);
+    let legacy = []; try{ legacy = JSON.parse(localStorage.getItem(VOTES_KEY)) || []; }catch(e){}
+    legacy.forEach(k=>{ if(!keys.has(k)){ keys.add(k); postToSheet("recordVote", { Voter:who, Key:k }); } });
+    if(legacy.length){ try{ localStorage.removeItem(VOTES_KEY); }catch(e){} }
+    if(voterId() !== who) return;                       // signed out or switched while loading
+    saveVoted(keys);
+    renderNominees();
+  }catch(e){ /* offline: keep this browser's copy */ }
+}
 
 const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function formatSheetDate(value){
@@ -994,6 +1024,7 @@ async function loadSharedData(){
     WINNERS.splice(0, WINNERS.length, ...(data.winners||[]).map(r=>({ ...mapSub(r), awardedAt: formatSheetDate(r["Awarded at"]), why: r["Why it won"] || "" })));
     Object.keys(PROJECT_TOOLS).forEach(k=>delete PROJECT_TOOLS[k]);
     (data.tools||[]).forEach(r=>{ try{ PROJECT_TOOLS[r.Project] = JSON.parse(r.Tools) || []; }catch(e){} });
+    if(data.accounts) applyAccounts(data.accounts);
     const g = data.governance || {};
     GOV.checkins = g.checkins || {};
     GOV.cycleWeeks = +g.cycleWeeks || 10;
@@ -1141,12 +1172,12 @@ $("#cookie-decline").addEventListener("click", ()=>{
 });
 
 /* ============ Login / access ============
-   No backend exists, so this is a client-side onboarding gate, not real
-   security: passwords live in this browser's localStorage, and reset
-   "links" just carry a token in the URL hash for this same page to read.
-   Good enough to stop casual access and give the branch a familiar
-   username/password/reset flow; not a substitute for real auth if this
-   ever needs to protect anything sensitive. */
+   This is an onboarding gate, not bank-grade security. A custom password is
+   stored as a salted SHA-256 hash in the Sheet's Accounts tab (so it works
+   in every browser), and the check happens in the page. Anyone who has not
+   set one uses their default password. Good enough to stop casual access and
+   give the branch a familiar username/password/reset flow; not a substitute
+   for real auth if this ever needs to protect anything sensitive. */
 function initials(name){ const w = name.trim().split(/\s+/); return ((w[0][0]||"") + (w.length>1 ? w[w.length-1][0] : "")).toUpperCase(); }
 function roleLine(p){ return p.project ? `${p.role} · ${p.project}` : p.role; }
 function nameParts(name){
@@ -1164,16 +1195,127 @@ function defaultPasswordFor(name){
   const { first, last } = nameParts(name);
   return `${first}${last}2026!`;
 }
-const CRED_KEY = "aiTrackerCredentials";
+const CRED_KEY = "aiTrackerCredentials";   // old plaintext store, only read to migrate people across
 const RESET_KEY = "aiTrackerResetTokens";
+const CACHE_KEY = "aiTrackerCredsCache";   // this browser's copy of {salt, hash}; used only when the Sheet can't be reached
 function loadCreds(){ try{ return JSON.parse(localStorage.getItem(CRED_KEY)) || {}; } catch(e){ return {}; } }
 function saveCreds(store){ try{ localStorage.setItem(CRED_KEY, JSON.stringify(store)); } catch(e){} }
-function passwordFor(username, name){
-  const store = loadCreds();
-  return username in store ? store[username] : defaultPasswordFor(name);
+function loadCache(){ try{ return JSON.parse(localStorage.getItem(CACHE_KEY)) || {}; } catch(e){ return {}; } }
+function saveCache(store){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(store)); } catch(e){} }
+
+/* Accounts from the Sheet: username -> { salt, hash, attempts }. A person with
+   no row is still on their default password. */
+const ACCT = {};
+let ACCT_LOADED = false;
+function applyAccounts(map){
+  Object.keys(ACCT).forEach(k=>delete ACCT[k]);
+  Object.assign(ACCT, map || {});
+  ACCT_LOADED = true;
 }
-function setPassword(username, newPw){
-  const store = loadCreds(); store[username] = newPw; saveCreds(store);
+async function refreshAccounts(){
+  if(!SHEETS_API_URL) return;
+  try{
+    const res = await fetch(SHEETS_API_URL + "?view=accounts");
+    const d = await res.json();
+    if(d && d.accounts) applyAccounts(d.accounts);
+  }catch(e){ /* offline: keep what we have */ }
+}
+/* Like postToSheet, but reads the answer. Returns null if it could not be read. */
+async function callSheet(type, fields){
+  // Account actions are only sent once the Sheet has shown it understands them
+  // (the new script returns "accounts"); an older script would file them as a blank nomination.
+  if(!SHEETS_API_URL || !ACCT_LOADED) return null;
+  try{
+    const res = await fetch(SHEETS_API_URL, { method:"POST", headers:{ "Content-Type":"text/plain;charset=utf-8" }, body: JSON.stringify({ type, fields }) });
+    return await res.json();
+  }catch(e){ return null; }
+}
+/* Shared sign-ins (Guest, Global Leadership Team) keep their fixed password and never lock. */
+function isSharedAccount(username){ return username === "guest.user" || username === usernameFor("Global Leadership Team"); }
+
+function sha256Fallback(str){
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const bytes = new TextEncoder().encode(str), l = bytes.length;
+  const m = new Uint8Array(((l + 9 + 63) >> 6) << 6); m.set(bytes); m[l] = 0x80;
+  const dv = new DataView(m.buffer);
+  dv.setUint32(m.length - 8, Math.floor(l * 8 / 0x100000000)); dv.setUint32(m.length - 4, (l * 8) >>> 0);
+  let h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const w = new Uint32Array(64);
+  for(let o = 0; o < m.length; o += 64){
+    for(let i = 0; i < 16; i++) w[i] = dv.getUint32(o + i * 4);
+    for(let i = 16; i < 64; i++){
+      const a = w[i-15], b = w[i-2];
+      const s0 = ((a>>>7)|(a<<25)) ^ ((a>>>18)|(a<<14)) ^ (a>>>3);
+      const s1 = ((b>>>17)|(b<<15)) ^ ((b>>>19)|(b<<13)) ^ (b>>>10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+    }
+    let [a,b,c,d,e,f,g,hh] = h;
+    for(let i = 0; i < 64; i++){
+      const S1 = ((e>>>6)|(e<<26)) ^ ((e>>>11)|(e<<21)) ^ ((e>>>25)|(e<<7));
+      const t1 = (hh + S1 + ((e&f) ^ (~e&g)) + K[i] + w[i]) >>> 0;
+      const S0 = ((a>>>2)|(a<<30)) ^ ((a>>>13)|(a<<19)) ^ ((a>>>22)|(a<<10));
+      const t2 = (S0 + ((a&b) ^ (a&c) ^ (b&c))) >>> 0;
+      hh = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    h = [(h[0]+a)>>>0,(h[1]+b)>>>0,(h[2]+c)>>>0,(h[3]+d)>>>0,(h[4]+e)>>>0,(h[5]+f)>>>0,(h[6]+g)>>>0,(h[7]+hh)>>>0];
+  }
+  return h.map(x=>x.toString(16).padStart(8,"0")).join("");
+}
+async function sha256Hex(str){
+  if(window.crypto && crypto.subtle){
+    try{
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+      return [...new Uint8Array(buf)].map(x=>x.toString(16).padStart(2,"0")).join("");
+    }catch(e){}
+  }
+  return sha256Fallback(str);
+}
+/* proof = SHA-256(salt:password) never leaves the browser except to authorise a
+   change; the Sheet stores SHA-256(proof), so reading the Sheet does not give
+   anyone what they need to change a password. */
+const proofOf = (salt, pw) => sha256Hex(salt + ":" + pw);
+const hashPw = async (salt, pw) => sha256Hex(await proofOf(salt, pw));
+let SESSION_PROOF = null;   // the signed-in person's proof, kept in memory only (lets execs authorise reset links)
+function randomHex(bytes){
+  const a = new Uint8Array(bytes);
+  if(window.crypto && crypto.getRandomValues) crypto.getRandomValues(a); else for(let i=0;i<bytes;i++) a[i] = Math.floor(Math.random()*256);
+  return [...a].map(x=>x.toString(16).padStart(2,"0")).join("");
+}
+
+/* Check a typed password. "custom" means the person has set their own, so they
+   should not be asked to change a default. "legacy" means it matched the old
+   per-browser store and should be moved into the Sheet. */
+async function verifyPassword(username, name, input){
+  if(isSharedAccount(username)) return { ok: input === defaultPasswordFor(name), custom:true };
+  const server = ACCT[username];
+  if(ACCT_LOADED){
+    if(server && server.hash) return { ok: (await hashPw(server.salt, input)) === server.hash, custom:true };
+  } else {
+    const c = loadCache()[username];
+    if(c && c.hash) return { ok: (await hashPw(c.salt, input)) === c.hash, custom:true };
+  }
+  const legacy = loadCreds()[username];
+  if(legacy !== undefined) return { ok: input === legacy, custom:true, legacy:true };
+  return { ok: input === defaultPasswordFor(name), custom:false };
+}
+/* Save a new password. Pass { token } for a reset link or { oldPw } when
+   changing. Resolves { ok, saved }: saved=false means the Sheet could not be
+   reached, so it only works on this device for now. */
+async function storePassword(username, newPw, opts){
+  opts = opts || {};
+  const salt = randomHex(16), proof = await proofOf(salt, newPw), hash = await sha256Hex(proof);
+  const cur = ACCT[username];
+  const prevProof = (cur && cur.hash && opts.oldPw !== undefined) ? await proofOf(cur.salt, opts.oldPw) : "";
+  const res = await callSheet("setPassword", { Username:username, Salt:salt, Hash:hash, PrevProof:prevProof, Token:opts.token || "" });
+  if(!res) await new Promise(r=>setTimeout(r, 500));
+  await refreshAccounts();
+  const saved = !!(ACCT[username] && ACCT[username].hash === hash);
+  if(!saved && res && res.ok === false && res.reason !== "failed") return { ok:false, reason:res.reason };
+  ACCT[username] = { salt, hash, attempts:0 };
+  const c = loadCache(); c[username] = { salt, hash }; saveCache(c);
+  const lg = loadCreds(); if(username in lg){ delete lg[username]; saveCreds(lg); }
+  if(currentUser && usernameFor(currentUser.name) === username) SESSION_PROOF = proof;
+  return { ok:true, saved, proof };
 }
 function passwordIssues(pw){
   const issues = [];
@@ -1185,37 +1327,34 @@ function passwordIssues(pw){
 }
 function loadResetTokens(){ try{ return JSON.parse(localStorage.getItem(RESET_KEY)) || {}; } catch(e){ return {}; } }
 function saveResetTokens(store){ try{ localStorage.setItem(RESET_KEY, JSON.stringify(store)); } catch(e){} }
-function genResetToken(username){
-  const token = Math.random().toString(36).slice(2,10) + Math.random().toString(36).slice(2,6);
+async function genResetToken(username){
+  const token = randomHex(8);   // 16 letters/numbers
+  const expires = Date.now() + 1000*60*60*24;
+  const res = await callSheet("createReset", { Username:username, Token:token, Expires:expires, AdminUser:currentUser ? usernameFor(currentUser.name) : "", AdminProof:SESSION_PROOF || "" });
+  if(res && res.ok === false) return null;                 // the Sheet refused (not an exec, or exec has no own password yet)
   const store = loadResetTokens();
-  store[token] = { username, expires: Date.now() + 1000*60*60*24 };
+  store[token] = { username, expires };
   saveResetTokens(store);
   return token;
 }
-const ATTEMPTS_KEY = "aiTrackerLoginAttempts";
+const ATTEMPTS_KEY = "aiTrackerLoginAttempts";   // offline fallback only
 const MAX_ATTEMPTS = 5;
 function loadAttempts(){ try{ return JSON.parse(localStorage.getItem(ATTEMPTS_KEY)) || {}; } catch(e){ return {}; } }
 function saveAttempts(store){ try{ localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(store)); } catch(e){} }
-function attemptsFor(username){ return loadAttempts()[username] || 0; }
-function isLocked(username){ return username !== "guest.user" && attemptsFor(username) > MAX_ATTEMPTS; }
+function attemptsFor(username){
+  return ACCT_LOADED ? ((ACCT[username] && ACCT[username].attempts) || 0) : (loadAttempts()[username] || 0);
+}
+function isLocked(username){ return !isSharedAccount(username) && attemptsFor(username) > MAX_ATTEMPTS; }
 function recordFailedAttempt(username){
-  if(username === "guest.user") return;
-  const store = loadAttempts(); store[username] = (store[username]||0) + 1; saveAttempts(store);
+  if(isSharedAccount(username)) return;
+  if(ACCT_LOADED){ (ACCT[username] = ACCT[username] || { salt:"", hash:"", attempts:0 }).attempts++; }
+  else { const store = loadAttempts(); store[username] = (store[username]||0) + 1; saveAttempts(store); }
+  if(ACCT_LOADED) postToSheet("failedAttempt", { Username:username });
 }
 function clearAttempts(username){
+  if(ACCT[username]) ACCT[username].attempts = 0;
   const store = loadAttempts(); delete store[username]; saveAttempts(store);
-}
-const FIRST_LOGIN_KEY = "aiTrackerFirstLoginDone";
-function isFirstLogin(username){
-  if(username === "guest.user") return false;
-  try{ return !(JSON.parse(localStorage.getItem(FIRST_LOGIN_KEY)) || {})[username]; } catch(e){ return false; }
-}
-function markLoggedIn(username){
-  try{
-    const store = JSON.parse(localStorage.getItem(FIRST_LOGIN_KEY)) || {};
-    store[username] = true;
-    localStorage.setItem(FIRST_LOGIN_KEY, JSON.stringify(store));
-  } catch(e){}
+  if(ACCT_LOADED) postToSheet("clearAttempts", { Username:username });
 }
 let currentUser = null;
 function profileCard(p){
@@ -1314,12 +1453,22 @@ function renderLogin(){
       </form>`;
   }
 }
-function checkResetHash(){
+async function checkResetHash(){
   const m = location.hash.match(/^#reset=(.+)$/);
   if(!m) return false;
-  const entry = loadResetTokens()[m[1]];
-  if(!entry || entry.expires < Date.now()) return false;
-  loginView = { step:"reset", token:m[1], username:entry.username, projectIdx:null, profileIdx:null, from:null };
+  const token = m[1];
+  let username = null;
+  const local = loadResetTokens()[token];
+  if(local && local.expires > Date.now()) username = local.username;
+  if(!username && SHEETS_API_URL){
+    try{
+      const res = await fetch(SHEETS_API_URL + "?view=reset&token=" + encodeURIComponent(token));
+      const d = await res.json();
+      if(d && d.username) username = d.username;
+    }catch(e){}
+  }
+  if(!username) return false;
+  loginView = { step:"reset", token, username, projectIdx:null, profileIdx:null, from:null };
   renderLogin();
   return true;
 }
@@ -1342,21 +1491,29 @@ $("#profiles").addEventListener("click", e=>{
   const pbtn = e.target.closest("[data-i]");
   if(pbtn){ loginView = { step:"password", profileIdx:+pbtn.dataset.i, projectIdx:loginView.projectIdx, from:loginView.step }; renderLogin(); }
 });
-$("#profiles").addEventListener("submit", e=>{
+$("#profiles").addEventListener("submit", async e=>{
   if(e.target.id === "login-pw-form"){
     e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button[type="submit"]');
+    if(btn){ btn.disabled = true; btn.textContent = "Checking..."; }
     const p = resolveLoginProfile(loginView.profileIdx);
     const username = usernameFor(p.name);
+    const typed = $("#login-pw-input").value;
+    await refreshAccounts();            // pick up a password changed or reset in another browser
     if(isLocked(username)) { renderLogin(); return; }
-    if($("#login-pw-input").value === passwordFor(username, p.name)){
+    const result = await verifyPassword(username, p.name, typed);
+    if(result.ok){
       clearAttempts(username);
-      const firstLogin = isFirstLogin(username);
-      offerToSavePassword(e.target, username, $("#login-pw-input").value, p.name);
+      if(result.legacy) await storePassword(username, typed);   // move an old per-browser password into the Sheet
+      SESSION_PROOF = (ACCT[username] && ACCT[username].hash) ? await proofOf(ACCT[username].salt, typed) : null;
+      offerToSavePassword(form, username, typed, p.name);
       login(p);
-      if(firstLogin){ markLoggedIn(username); openChangePasswordModal(true); }
+      if(!result.custom) openChangePasswordModal(true);
     } else {
       recordFailedAttempt(username);
       if(isLocked(username)){ renderLogin(); return; }
+      if(btn){ btn.disabled = false; btn.textContent = "Log in"; }
       $("#login-pw-error").hidden = false; $("#login-pw-input").value = ""; $("#login-pw-input").focus();
     }
   } else if(e.target.id === "reset-pw-form"){
@@ -1365,11 +1522,15 @@ $("#profiles").addEventListener("submit", e=>{
     const issues = passwordIssues(next);
     if(issues.length){ err.textContent = `Password needs ${issues.join(", ")}.`; err.hidden = false; return; }
     if(next !== conf){ err.textContent = "Passwords don't match."; err.hidden = false; return; }
-    setPassword(loginView.username, next);
-    markLoggedIn(loginView.username);
+    const outcome = await storePassword(loginView.username, next, { token:loginView.token });
+    if(!outcome.ok){
+      err.textContent = "This reset link has expired or was already used. Ask for a new one.";
+      err.hidden = false; return;
+    }
     const tokens = loadResetTokens(); delete tokens[loginView.token]; saveResetTokens(tokens);
+    clearAttempts(loginView.username);
     history.replaceState(null, "", location.pathname + location.search);
-    toast("Password updated. You can log in now.");
+    toast(outcome.saved ? "Password updated. You can log in now." : "Password updated on this device only. The Sheet could not be reached, so try again online.");
     loginView = {step:"root",projectIdx:null,profileIdx:null,from:null};
     renderLogin();
   }
@@ -1393,6 +1554,8 @@ function login(p){
   currentUser = p;
   renderLogs();
   $("#id-name").textContent = p.name;
+  loadMyVotes();
+  $("#change-pw-btn").style.display = isSharedAccount(usernameFor(p.name)) ? "none" : "";
   $("#id-meta").textContent = roleLine(p);
   $("#id-access").textContent = p.admin ? "Admin access" : "Standard access";
   $("#nav-admin").hidden = !p.admin;
@@ -1840,8 +2003,14 @@ function hoursByTask(list){
   return Object.entries(m).map(([name,h])=>({name, hrs:+h.toFixed(1)})).filter(t=>t.hrs>0).sort((a,b)=>b.hrs-a.hrs);
 }
 function renderLockedList(){
-  const attempts = loadAttempts();
-  const locked = Object.keys(attempts).filter(u => attempts[u] > MAX_ATTEMPTS);
+  paintLockedList();
+  refreshAccounts().then(paintLockedList);   // other browsers may have locked someone
+}
+function paintLockedList(){
+  const attempts = {};
+  Object.keys(ACCT).forEach(u=>{ attempts[u] = ACCT[u].attempts || 0; });
+  if(!ACCT_LOADED){ const l = loadAttempts(); Object.keys(l).forEach(u=>{ attempts[u] = l[u]; }); }
+  const locked = Object.keys(attempts).filter(u => !isSharedAccount(u) && attempts[u] > MAX_ATTEMPTS);
   const el = $("#locked-list");
   if(!locked.length){
     el.innerHTML = `<p style="color:var(--muted);font-size:13px">No accounts are currently locked.</p>`;
@@ -1862,7 +2031,7 @@ function renderLockedList(){
 $("#locked-list").addEventListener("click", e=>{
   const b = e.target.closest("[data-unlock-user]"); if(!b) return;
   clearAttempts(b.dataset.unlockUser);
-  renderLockedList();
+  paintLockedList();
   toast("Account unlocked");
 });
 function renderResetList(filter=""){
@@ -1879,10 +2048,14 @@ function renderResetList(filter=""){
   }).join("");
 }
 $("#reset-search").addEventListener("input", e=>renderResetList(e.target.value));
-$("#reset-list").addEventListener("click", e=>{
+$("#reset-list").addEventListener("click", async e=>{
   const b = e.target.closest("[data-reset-user]"); if(!b) return;
   const username = b.dataset.resetUser, name = b.dataset.resetName;
-  const token = genResetToken(username);
+  if(!SESSION_PROOF){ toast("Set your own password first (Change password), then you can send reset links."); return; }
+  b.disabled = true;
+  const token = await genResetToken(username);
+  b.disabled = false;
+  if(!token){ toast("The Sheet would not create that link. Check you're signed in with your own password, then try again."); return; }
   const link = `${location.origin}${location.pathname}#reset=${token}`;
   const slot = b.closest("[data-reset-slot]");
   slot.innerHTML = `<span style="font-family:var(--f-mono);font-size:11px;color:var(--green-dk);word-break:break-all">${link}</span>`;
@@ -1914,15 +2087,22 @@ function renderNominees(){
     <p class="n-desc">${n.achievement}</p>
     <p class="note" style="margin-top:8px">Saved ~${n.hours}h, an est. ${n.pct}% productivity increase on this task</p></div>`).join("");
 }
-$("#nominees").addEventListener("click", e=>{
+$("#nominees").addEventListener("click", async e=>{
   const b = e.target.closest(".vote"); if(!b) return;
   const s = SUBMISSIONS[+b.dataset.i]; if(!s) return;
   const voted = votedSet(), key = voteKey(s), had = voted.has(key);
   if(had){ voted.delete(key); s.votes = Math.max(0, s.votes - 1); } else { voted.add(key); s.votes++; }
   saveVoted(voted);
-  postToSheet("vote", { Name:s.name, Prompt:s.prompt, Achievement:s.achievement, Delta: had ? -1 : 1 });
   renderNominees(); renderReview();
   toast(had ? "Upvote removed" : "Thanks, vote counted");
+  const body = { Name:s.name, Prompt:s.prompt, Achievement:s.achievement, Voter:voterId(), Key:key, Delta: had ? -1 : 1 };
+  const res = ACCT_LOADED ? await callSheet("vote", body) : (postToSheet("vote", body), null);
+  if(res && res.unchanged){
+    // The Sheet already had this person's vote in the state we just set (they voted from another browser):
+    // take the real counts and their real votes from the Sheet instead of guessing.
+    await loadSharedData();
+    await loadMyVotes();
+  }
 });
 $("#award-form").addEventListener("submit", async e=>{
   e.preventDefault();
@@ -1940,7 +2120,8 @@ $("#award-form").addEventListener("submit", async e=>{
   const hours = +(est.minutes/60).toFixed(1), water = `~${(est.water/1000).toFixed(2)} L`, co2 = `~${Math.round(est.co2)} g`;
   const pct = pctIncrease(est.minutes);
   SUBMISSIONS.unshift({ name, role, project, prompt, achievement, task, hours, water, co2, pct, votes:1, files });
-  { const v = votedSet(); v.add(voteKey({ name, prompt, achievement })); saveVoted(v); }
+  { const v = votedSet(); v.add(voteKey({ name, prompt, achievement })); saveVoted(v);
+    if(ACCT_LOADED) postToSheet("recordVote", { Voter:voterId(), Key:voteKey({ name, prompt, achievement }) }); }
   renderNominees(); renderReview();
   $("#sf-prompt").value=""; $("#sf-impact").value=""; $("#sf-file").value="";
   toast(files.length?`Nomination submitted with ${files.length} file(s)`:"Nomination submitted");
@@ -2081,19 +2262,22 @@ function openChangePasswordModal(firstLogin){
 $("#change-pw-btn").addEventListener("click", ()=>openChangePasswordModal(false));
 $("#pw-change-cancel").addEventListener("click", ()=>$("#pw-modal").classList.remove("show"));
 $("#pw-modal").addEventListener("click", e=>{ if(e.target.id==="pw-modal") $("#pw-modal").classList.remove("show"); });
-$("#pw-change-form").addEventListener("submit", e=>{
+$("#pw-change-form").addEventListener("submit", async e=>{
   e.preventDefault();
   if(!currentUser) return;
   const username = usernameFor(currentUser.name);
   const cur = $("#pw-current").value, next = $("#pw-new").value, conf = $("#pw-confirm").value;
   const err = $("#pw-change-error");
-  if(cur !== passwordFor(username, currentUser.name)){ err.textContent = "Current password is incorrect."; err.hidden = false; return; }
+  await refreshAccounts();
+  const check = await verifyPassword(username, currentUser.name, cur);
+  if(!check.ok){ err.textContent = "Current password is incorrect."; err.hidden = false; return; }
   const issues = passwordIssues(next);
   if(issues.length){ err.textContent = `New password needs ${issues.join(", ")}.`; err.hidden = false; return; }
   if(next !== conf){ err.textContent = "New passwords don't match."; err.hidden = false; return; }
-  setPassword(username, next);
+  const outcome = await storePassword(username, next, { oldPw:cur });
+  if(!outcome.ok){ err.textContent = "Your password was changed somewhere else a moment ago. Close this and try again."; err.hidden = false; return; }
   $("#pw-modal").classList.remove("show");
-  toast("Password updated");
+  toast(outcome.saved ? "Password updated" : "Password updated on this device only. The Sheet could not be reached, so try again online.");
 });
 
 /* ============ Extra admin charts ============ */
@@ -2136,7 +2320,8 @@ $("#award-subtabs").addEventListener("click", e=>{
 
 /* ============ Init ============ */
 function init(){
-  if(!checkResetHash()) renderLogin();
+  renderLogin();
+  checkResetHash();
   fillSelect($("#sf-role"), ROLES); fillSelect($("#sf-project"), PROJECTS);
   fillSelect($("#lf-project"), PROJECTS);
   fillSelect($("#lf-tool"), TOOLS, "Not specified"); fillSelect($("#lf-task"), TASK_TYPES, "Not specified");
