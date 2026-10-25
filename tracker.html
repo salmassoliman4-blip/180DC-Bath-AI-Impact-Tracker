@@ -537,7 +537,7 @@
         <p class="sub" style="color:var(--muted);font-size:13px;margin-bottom:16px">Paste the prompt, or describe what you did, then we estimate the impact for you.</p>
         <form class="submit-form" id="log-form">
           <input type="text" id="lf-hp" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" aria-hidden="true">
-          <div><label>What did you use AI for?</label><textarea id="lf-usecase" maxlength="800" placeholder="e.g. Synthesised 4 research reports into a structured market analysis for the client's fundraising strategy..." required></textarea></div>
+          <div><label>What did you use AI for?</label><textarea id="lf-usecase" placeholder="e.g. Synthesised 4 research reports into a structured market analysis for the client's fundraising strategy..." required></textarea></div>
           <div class="chips" id="lf-estimate-result" style="display:none"></div>
           <div class="row2">
             <div><label>Project</label><select id="lf-project"></select></div>
@@ -610,12 +610,12 @@
           <form class="submit-form" id="award-form">
             <input type="text" id="sf-hp" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" aria-hidden="true">
             <div class="row2">
-              <div><label>Your name</label><input id="sf-name" maxlength="80" placeholder="Alex Rivers" required></div>
+              <div><label>Your name</label><input id="sf-name" placeholder="Alex Rivers" required></div>
               <div><label>Role</label><select id="sf-role"></select></div>
             </div>
             <div><label>Project</label><select id="sf-project"></select></div>
-            <div><label>The prompt you used</label><textarea id="sf-prompt" maxlength="2000" placeholder="Paste the exact prompt..." required></textarea></div>
-            <div><label>What it achieved</label><textarea id="sf-impact" maxlength="1000" placeholder="What did it save? What was the outcome for the client?" required></textarea></div>
+            <div><label>The prompt you used</label><textarea id="sf-prompt" placeholder="Paste the exact prompt..." required></textarea></div>
+            <div><label>What it achieved</label><textarea id="sf-impact" placeholder="What did it save? What was the outcome for the client?" required></textarea></div>
             <div><label>Attach evidence (PPT, PDF, Excel or documents)</label><input id="sf-file" type="file" accept=".ppt,.pptx,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.png,.jpg,.jpeg" multiple><p class="note" style="margin-top:6px">Attach the deck, spreadsheet, before and after, or a screenshot. Up to 5 files, 10MB each.</p></div>
             <button type="submit" class="btn" style="justify-self:start">Submit nomination</button>
           </form>
