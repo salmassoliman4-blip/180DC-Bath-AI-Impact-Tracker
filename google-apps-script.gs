@@ -12,18 +12,28 @@ const PROJECT_NAMES = ["CCCYD", "The Alfred Gillett Trust", "KidsOut", "Motivati
 
 function doGet(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const view = e && e.parameter ? e.parameter.view : "";
+  if (view === "accounts") return json({ accounts: readAccounts(ss) });
+  if (view === "reset") return json(checkReset(ss, e.parameter.token));
+  if (view === "votes") return json({ keys: votesBy(ss, e.parameter.voter) });
   const logs = readSheet(ss.getSheetByName("Logs"));
   const submissions = readSheet(ss.getSheetByName("Submissions"));
   const archive = readSheet(ss.getSheetByName("Archive"));
   const tools = readSheet(ss.getSheetByName("Tools"));
   const winners = readSheet(ss.getSheetByName("Winners"));
   const governance = readGovernance(ss);
-  return ContentService.createTextOutput(JSON.stringify({ logs, submissions, archive, tools, winners, governance }))
+  const accounts = readAccounts(ss);
+  return ContentService.createTextOutput(JSON.stringify({ logs, submissions, archive, tools, winners, governance, accounts }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
+  if (data.type === "setPassword") return json(setPassword(data.fields || {}));
+  if (data.type === "recordVote") return json(recordVote(data.fields || {}));
+  if (data.type === "failedAttempt") return json(changeAttempts(data.fields || {}, 1));
+  if (data.type === "clearAttempts") return json(changeAttempts(data.fields || {}, 0));
+  if (data.type === "createReset") return json(createReset(data.fields || {}));
   if (data.type === "saveTools") {
     return json(saveTools(data.fields || {}));
   }
@@ -61,6 +71,155 @@ function doPost(e) {
   sheet.appendRow(row);
   return ContentService.createTextOutput(JSON.stringify({ ok: true }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Accounts tab (created automatically): one row per person who has set their
+ * own password. The password itself is never stored, only a salted SHA-256
+ * hash computed in the browser. Columns:
+ *   A Username | B Salt | C Hash | D Updated | E Failed attempts | F Reset token | G Reset expires
+ * Delete a person's row to put them back on their default password.
+ * How it stays safe: the browser sends a "proof" (SHA-256 of salt + password)
+ * and this script stores SHA-256 of that proof. Reading the sheet therefore
+ * does not give anyone the proof they would need to change a password, and
+ * only the people in RESET_ADMINS can create reset links.
+ * Note: this web app has no sign-in of its own, so anyone with its URL can
+ * still read the hashes and try to guess short passwords offline. Keep the
+ * URL inside the branch.
+ */
+const RESET_ADMINS = ["salma.ibrahim", "jashan.ball"];
+
+function sha256Hex(text) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  return bytes.map(b => ((b < 0 ? b + 256 : b)).toString(16).padStart(2, "0")).join("");
+}
+const ACCOUNT_HEADERS = ["Username", "Salt", "Hash", "Updated", "Failed attempts", "Reset token", "Reset expires"];
+
+function accountsSheet(ss) {
+  let sheet = ss.getSheetByName("Accounts");
+  if (!sheet) {
+    sheet = ss.insertSheet("Accounts");
+    sheet.appendRow(ACCOUNT_HEADERS);
+    // Keep long hex strings and tokens as plain text so Sheets never turns
+    // one into a number (for example 12e45... becoming scientific notation).
+    sheet.getRange("A:C").setNumberFormat("@");
+    sheet.getRange("F:F").setNumberFormat("@");
+  }
+  return sheet;
+}
+
+function readAccounts(ss) {
+  const values = accountsSheet(ss).getDataRange().getValues();
+  const out = {};
+  for (let i = 1; i < values.length; i++) {
+    const u = String(values[i][0] || "");
+    if (!u) continue;
+    out[u] = {
+      salt: String(values[i][1] || ""),
+      hash: String(values[i][2] || ""),
+      attempts: Number(values[i][4]) || 0
+    };
+  }
+  return out;
+}
+
+/** Reads one account row, lets mutate(row, existed) change it, writes it back (or appends it). */
+function updateAccount(username, mutate) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = accountsSheet(SpreadsheetApp.getActiveSpreadsheet());
+    const values = sheet.getDataRange().getValues();
+    let rowNum = 0, cur = [username, "", "", "", 0, "", ""];
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0]) === username) { rowNum = i + 1; cur = values[i].slice(0, 7); break; }
+    }
+    const next = mutate(cur, rowNum > 0);
+    if (!next) return { ok: false };
+    if (rowNum) {
+      sheet.getRange(rowNum, 1, 1, 7).setValues([next]);
+    } else {
+      sheet.appendRow(next);
+      sheet.getRange(sheet.getLastRow(), 1, 1, 3).setNumberFormat("@");
+      sheet.getRange(sheet.getLastRow(), 6).setNumberFormat("@");
+      sheet.getRange(sheet.getLastRow(), 1, 1, 7).setValues([next]);
+    }
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function cleanUsername(v) {
+  const u = String(v || "").trim().toLowerCase();
+  return u && u.length <= 80 ? u : "";
+}
+
+/**
+ * Sets (or changes) a password. Hash is SHA-256 of the proof the browser
+ * computed. Allowed when:
+ *   - the person has no custom password yet, or
+ *   - SHA-256(PrevProof) matches the stored hash (they knew the old password), or
+ *   - Token matches a reset token that has not expired.
+ */
+function setPassword(m) {
+  const username = cleanUsername(m.Username);
+  const salt = String(m.Salt || ""), hash = String(m.Hash || "");
+  if (!username || !/^[0-9a-f]{16,64}$/.test(salt) || !/^[0-9a-f]{64}$/.test(hash)) {
+    return { ok: false, reason: "invalid" };
+  }
+  let reason = "";
+  const res = updateAccount(username, cur => {
+    const storedHash = String(cur[2] || ""), token = String(cur[5] || ""), expires = Number(cur[6]) || 0;
+    const tokenOk = m.Token && token && String(m.Token) === token && Date.now() < expires;
+    const prevOk = !storedHash || (m.PrevProof && sha256Hex(String(m.PrevProof)) === storedHash);
+    if (!tokenOk && !prevOk) { reason = "changed"; return null; }
+    cur[1] = salt; cur[2] = hash; cur[3] = new Date(); cur[4] = 0;
+    if (tokenOk) { cur[5] = ""; cur[6] = ""; }
+    return cur;
+  });
+  return res.ok ? res : { ok: false, reason: reason || "failed" };
+}
+
+/** delta 1 = one more failed attempt, 0 = clear the counter (unlock). */
+function changeAttempts(m, delta) {
+  const username = cleanUsername(m.Username);
+  if (!username) return { ok: false };
+  return updateAccount(username, (cur, existed) => {
+    if (!delta && !existed) return null;   // nothing to clear, so don't create an empty row
+    cur[4] = delta ? (Number(cur[4]) || 0) + 1 : 0;
+    return cur;
+  });
+}
+
+/**
+ * Stores a one-time reset token (valid until Expires, a millisecond timestamp).
+ * Only a person in RESET_ADMINS who proves their own password can do this.
+ */
+function createReset(m) {
+  const username = cleanUsername(m.Username);
+  const token = String(m.Token || "");
+  if (!username || !/^[A-Za-z0-9]{8,64}$/.test(token)) return { ok: false, reason: "invalid" };
+  const admin = cleanUsername(m.AdminUser);
+  if (RESET_ADMINS.indexOf(admin) < 0) return { ok: false, reason: "not allowed" };
+  const accounts = readAccounts(SpreadsheetApp.getActiveSpreadsheet());
+  const stored = accounts[admin] && accounts[admin].hash;
+  if (!stored || !m.AdminProof || sha256Hex(String(m.AdminProof)) !== stored) return { ok: false, reason: "not allowed" };
+  const expires = Number(m.Expires) || (Date.now() + 24 * 60 * 60 * 1000);
+  return updateAccount(username, cur => { cur[5] = token; cur[6] = expires; return cur; });
+}
+
+/** Used by a reset link: returns the username if the token is valid and unexpired. */
+function checkReset(ss, token) {
+  token = String(token || "");
+  if (!token) return {};
+  const values = accountsSheet(ss).getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][5]) === token && Date.now() < (Number(values[i][6]) || 0)) {
+      return { username: String(values[i][0]) };
+    }
+  }
+  return {};
 }
 
 function json(obj) {
@@ -142,26 +301,97 @@ function awardSubmission(m) {
 }
 
 /**
+ * VoteLog tab (created automatically): one row per person per nomination they
+ * upvoted, so "I've already voted" follows the person across browsers.
+ *   A Voter | B Key | C When
+ */
+function voteLogSheet(ss) {
+  let sheet = ss.getSheetByName("VoteLog");
+  if (!sheet) {
+    sheet = ss.insertSheet("VoteLog");
+    sheet.appendRow(["Voter", "Key", "When"]);
+  }
+  return sheet;
+}
+
+/** The nomination keys this person has upvoted. */
+function votesBy(ss, voter) {
+  const v = cleanUsername(voter);
+  if (!v) return [];
+  const values = voteLogSheet(ss).getDataRange().getValues();
+  const keys = [];
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === v) keys.push(String(values[i][1]));
+  }
+  return keys;
+}
+
+/** Row number (1-based) of this person's vote for this nomination, or 0. */
+function findVoteRow(sheet, voter, key) {
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]) === voter && String(values[i][1]) === key) return i + 1;
+  }
+  return 0;
+}
+
+/**
+ * Notes that a person voted for a nomination WITHOUT changing its count. Used
+ * for a person's own vote on their nomination, and to move votes counted
+ * before votes were tracked per person.
+ */
+function recordVote(m) {
+  const voter = cleanUsername(m.Voter), key = String(m.Key || "");
+  if (!voter || !key) return { ok: false };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sheet = voteLogSheet(SpreadsheetApp.getActiveSpreadsheet());
+    if (!findVoteRow(sheet, voter, key)) sheet.appendRow([voter, key, new Date()]);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Adds or removes one upvote (Delta = 1 or -1) on the matching Submissions
  * row. Needs a "Votes" column in the Submissions header row; an empty Votes
  * cell counts as 1 (the nominee's own vote).
+ * When Voter and Key are sent, each person can only add one vote per
+ * nomination and can only remove a vote they actually cast, so repeating the
+ * request (or voting from a second browser) never double counts.
  */
 function changeVotes(m) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Submissions");
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Submissions");
     const values = sheet.getDataRange().getValues();
     const headers = values[0];
     const col = h => headers.indexOf(h);
     const vc = col("Votes");
     if (vc < 0) return { ok: true, found: false, note: "No Votes column" };
     const same = (row, h) => String(row[col(h)]) === String(m[h] === undefined ? "" : m[h]);
+    const delta = Number(m.Delta) || 0;
+    const voter = cleanUsername(m.Voter), key = String(m.Key || "");
+    let log = null, logRow = 0;
+    if (voter && key) {
+      log = voteLogSheet(ss);
+      logRow = findVoteRow(log, voter, key);
+      if (delta > 0 && logRow) return { ok: true, found: true, unchanged: true };
+      if (delta < 0 && !logRow) return { ok: true, found: true, unchanged: true };
+    }
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
       if (!(same(row, "Name") && same(row, "Prompt") && same(row, "Achievement"))) continue;
       const current = row[vc] === "" ? 1 : Number(row[vc]) || 0;
-      sheet.getRange(i + 1, vc + 1).setValue(Math.max(0, current + (Number(m.Delta) || 0)));
+      sheet.getRange(i + 1, vc + 1).setValue(Math.max(0, current + delta));
+      if (log) {
+        if (delta > 0) log.appendRow([voter, key, new Date()]);
+        else if (logRow) log.deleteRow(logRow);
+      }
       return { ok: true, found: true };
     }
     return { ok: true, found: false };
