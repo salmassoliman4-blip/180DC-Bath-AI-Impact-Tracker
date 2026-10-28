@@ -275,6 +275,18 @@
   form.submit-form label { font-size: 11.5px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 5px; }
   form.submit-form input, form.submit-form textarea, form.submit-form select { width: 100%; border: 1.5px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; font-family: var(--f-body); font-size: 14px; background: #FAFCF6; color: var(--ink); }
   form.submit-form textarea { min-height: 80px; resize: vertical; }
+  .lf-entry { display: grid; gap: 10px; }
+  .lf-entry + .lf-entry { padding-top: 14px; border-top: 1px dashed var(--line); }
+  .lf-entry .lf-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .lf-entry .lf-remove { background: none; border: 0; color: var(--muted); font-size: 12px; cursor: pointer; padding: 0; }
+  .lf-entry .lf-remove:hover { color: var(--ink); text-decoration: underline; }
+  .lf-estimate { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lf-estimate[hidden] { display: none; }
+  form.submit-form .lf-estimate label { margin: 0; }
+  form.submit-form .lf-estimate input.lf-minutes { width: 84px; padding: 6px 10px; }
+  .log-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .log-filters select { width: 100%; border: 1.5px solid var(--line); border-radius: var(--r-sm); padding: 7px 10px; font-family: var(--f-body); font-size: 13px; background: #fff; color: var(--ink); }
+  @media (max-width: 560px) { .log-filters { grid-template-columns: 1fr; } }
   form.submit-form input:focus, form.submit-form textarea:focus, form.submit-form select:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 4px rgba(127,181,57,.16); }
 
   .nominee { padding: 18px; display: flex; flex-direction: column; gap: 8px; }
@@ -537,14 +549,10 @@
         <p class="sub" style="color:var(--muted);font-size:13px;margin-bottom:16px">Paste the prompt, or describe what you did, then we estimate the impact for you.</p>
         <form class="submit-form" id="log-form">
           <input type="text" id="lf-hp" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" aria-hidden="true">
-          <div><label>What did you use AI for?</label><textarea id="lf-usecase" placeholder="e.g. Synthesised 4 research reports into a structured market analysis for the client's fundraising strategy..." required></textarea></div>
-          <div class="chips" id="lf-estimate-result" style="display:none"></div>
-          <div class="row2">
-            <div><label>Project</label><select id="lf-project"></select></div>
-            <div><label>Tool used</label><select id="lf-tool"></select></div>
-          </div>
-          <div><label>Task type</label><select id="lf-task"></select></div>
-          <button type="submit" class="btn" style="justify-self:start">Log this use case</button>
+          <div><label>Project</label><select id="lf-project"></select></div>
+          <div id="lf-entries" style="display:grid;gap:14px"></div>
+          <button type="button" class="btn ghost" id="lf-add" style="justify-self:start;padding:7px 14px;font-size:13px">+ Add another use case</button>
+          <button type="submit" class="btn" id="lf-submit" style="justify-self:start">Log this use case</button>
         </form>
       </div>
 
@@ -552,6 +560,12 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div><h3>Recent use cases</h3><p class="sub">Most recent first, this cycle</p></div>
           <button class="btn ghost" id="open-report" style="padding:8px 16px;font-size:13px">Download client report template</button>
+        </div>
+        <div class="log-filters">
+          <select id="lg-role" aria-label="Filter by role"></select>
+          <select id="lg-project" aria-label="Filter by project"></select>
+          <select id="lg-task" aria-label="Filter by task type"></select>
+          <select id="lg-week" aria-label="Filter by week of the cycle"></select>
         </div>
         <div id="log-list" style="display:grid;gap:10px"></div>
       </div>
@@ -616,6 +630,10 @@
             <div><label>Project</label><select id="sf-project"></select></div>
             <div><label>The prompt you used</label><textarea id="sf-prompt" placeholder="Paste the exact prompt..." required></textarea></div>
             <div><label>What it achieved</label><textarea id="sf-impact" placeholder="What did it save? What was the outcome for the client?" required></textarea></div>
+            <div class="lf-estimate" id="sf-estimate" hidden>
+              <label>Suggested time saved (hours)</label><input type="number" id="sf-hours" min="0" max="200" step="0.1" style="width:84px;padding:6px 10px">
+              <span class="note" style="flex-basis:100%">If the suggested time saved seems inaccurate, please adjust it.</span>
+            </div>
             <div><label>Attach evidence (PPT, PDF, Excel or documents)</label><input id="sf-file" type="file" accept=".ppt,.pptx,.pdf,.doc,.docx,.xls,.xlsx,.xlsm,.csv,.png,.jpg,.jpeg" multiple><p class="note" style="margin-top:6px">Attach the deck, spreadsheet, before and after, or a screenshot. Up to 5 files, 10MB each.</p></div>
             <button type="submit" class="btn" style="justify-self:start">Submit nomination</button>
           </form>
@@ -712,6 +730,12 @@
       <h3 style="font-size:16px;font-weight:600">Locked accounts</h3>
       <p class="sub" style="color:var(--muted);font-size:13px;margin-bottom:12px">Locked after 5 failed password attempts. Unlock an account here so they can try again.</p>
       <div id="locked-list" style="display:grid;gap:0"></div>
+    </div>
+    <div class="card" style="margin-top:18px">
+      <h3 style="font-size:16px;font-weight:600">Recalculate time estimates</h3>
+      <p class="sub" style="color:var(--muted);font-size:13px;margin-bottom:12px">Re-runs the updated estimator on use cases and award nominations logged before 29 Oct 2026, when people could not yet edit the suggested time. Newer entries keep the time their author confirmed. Updates the Sheet.</p>
+      <button class="btn" id="recalc-estimates">Recalculate estimates</button>
+      <p class="note" id="recalc-status" style="margin-top:10px"></p>
     </div>
   </section>
 
@@ -846,10 +870,10 @@ const PROFILES = [
   { name:"Aryana Chaudhuri", role:"Senior Consultant", project:"I Can and I Am", admin:false, photo:"aryana-chaudhuri.jpg" },
   { name:"Sibella Colton", role:"Senior Consultant", project:"I Can and I Am", admin:false, photo:"sibella-colton.jpg" },
   { name:"Connie Casimiro", role:"Consultant", project:"I Can and I Am", admin:false, photo:"connie-casimiro.jpg" },
-  { name:"Farah AlDajani", role:"Consultant", project:"I Can and I Am", admin:false, photo:"" },
+  { name:"Emma Shaw", role:"Consultant", project:"I Can and I Am", admin:false, photo:"" },
+  { name:"Farah AlDajani", role:"Consultant", project:"I Can and I Am", admin:false, photo:"farah-aldajani.jpg" },
   { name:"Gulsun Youssouf", role:"Consultant", project:"I Can and I Am", admin:false, photo:"gulsun-youssouf.jpg" },
   { name:"Jamal Kaddoura", role:"Consultant", project:"I Can and I Am", admin:false, photo:"jamal-kaddoura.jpg" },
-  { name:"Julian Watteaux", role:"Consultant", project:"I Can and I Am", admin:false, photo:"julian-watteaux.jpg" },
   { name:"Keira Patel", role:"Consultant", project:"I Can and I Am", admin:false, photo:"keira-patel.jpg" },
   { name:"Mook Somwang", role:"Consultant", project:"I Can and I Am", admin:false, photo:"mook-somwang.jpg" },
   { name:"Nhikywa Bilale", role:"Consultant", project:"I Can and I Am", admin:false, photo:"nhikywa-bilale.jpg" },
@@ -1016,7 +1040,7 @@ async function loadSharedData(){
     const mapSub = r=>({
       name: r.Name, role: r.Role, project: r.Project, prompt: r.Prompt,
       achievement: r.Achievement, task: r.Task, hours: +r.Hours, water: r.Water, co2: r.CO2,
-      pct: +r.Pct, votes: parseVotes(r.Votes), files: parseFilesCell(r.Files)
+      pct: +r.Pct, votes: parseVotes(r.Votes), files: parseFilesCell(r.Files), ts: new Date(r.Timestamp)
     });
     SUBMISSIONS.splice(0, SUBMISSIONS.length, ...(data.submissions||[]).map(mapSub).reverse());
     ARCHIVED.splice(0, ARCHIVED.length, ...(data.archive||[]).map(r=>({ ...mapSub(r), archivedAt: formatSheetDate(r["Archived at"]) })).reverse());
@@ -1024,6 +1048,7 @@ async function loadSharedData(){
     Object.keys(PROJECT_TOOLS).forEach(k=>delete PROJECT_TOOLS[k]);
     (data.tools||[]).forEach(r=>{ try{ PROJECT_TOOLS[r.Project] = JSON.parse(r.Tools) || []; }catch(e){} });
     if(data.accounts) applyAccounts(data.accounts);
+    SHEET_FEATURES = data.features || [];
     const g = data.governance || {};
     GOV.checkins = g.checkins || {};
     GOV.cycleWeeks = +g.cycleWeeks || 10;
@@ -1077,22 +1102,35 @@ const WATER_PER_1K = 11;    // mL per 1,000 tokens
 const ENERGY_PER_1K = 0.38; // Wh per 1,000 tokens
 const GRID_G_PER_WH = 0.42; // gCO2e per Wh (about 420 g per kWh grid intensity)
 
-function classify(text){
+/* Rough minutes saved per task type, blended with the keyword estimate. */
+const TASK_MINUTES = { "Research and synthesis":45, "Data and analysis":45, "Report drafting":40, "Slides and comms":25 };
+/* "Saved me 2 hours", "saved ~45 mins": if they tell us, use it. */
+function statedMinutes(t){
+  const m = t.match(/sav\w*\s+(?:me\s+|us\s+|about\s+|around\s+|roughly\s+|approx\w*\s+|~\s*)*(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?)\b/);
+  if(!m) return null;
+  const n = parseFloat(m[1]);
+  return Math.round(/^h/.test(m[2]) ? n*60 : n);
+}
+function classify(text, task){
   const t = text.toLowerCase();
-  const has = (arr) => arr.some(w => t.includes(w));
-  const highEffort = ["report","analysis","analyse","research","synthesi","model","financial","strategy","framework","proposal","deck","plan","dataset","clean","forecast","evaluat","literature","board"];
-  const lowEffort  = ["email","reword","rephrase","rewrite","format","spelling","grammar","shorten","tweak","caption","name","subject line","tweet","greeting","hello","joke"];
-  const highImpact = ["client","deliverable","report","analysis","strategy","recommend","research","deck","proposal","board","model","decision"];
-  const image      = ["image","logo","picture","illustration","photo","photorealistic","render","dall","midjourney","hero image"];
+  // Match at the start of a word, so "format" no longer fires inside "information"
+  // or "plan" inside "explain".
+  const has = (arr) => arr.some(w => new RegExp("\\b" + w).test(t));
+  const highEffort = ["report","analysis","analyse","analyze","research","synthesi","synthesize","model","financial","strategy","framework","proposal","deck","plan","dataset","clean","forecast","evaluat","literature","board","benchmark","funder","market","swot","mece","storyboard","storyline","gantt","prioriti","pivot","summari","longlist","shortlist","compar"];
+  const lowEffort  = ["email","reword","rephrase","rewrite","spelling","grammar","shorten","tweak","caption","subject line","tweet","greeting","hello","joke","icon"];
+  const highImpact = ["client","deliverable","report","analysis","strategy","recommend","research","deck","proposal","board","model","decision","funder","sprint"];
   const bigOutput  = ["report","deck","essay","draft","write","generate","list","plan","model","synthesi","document","page"];
 
+  const hi = has(highEffort), lo = has(lowEffort);
   let effort = 2, impact = 2;
-  if (has(highEffort)) effort = 3;
-  if (has(lowEffort)) effort = 1;
+  if (hi) effort = 3;
+  if (lo) effort = hi ? 2 : 1;   // "research ... then email it" is still real work
   if (has(highImpact)) impact = 3;
-  if (has(lowEffort) && !has(highImpact)) impact = 1;
+  if (lo && !has(highImpact)) impact = 1;
 
-  const isImage = has(image);
+  // Only image *generation* counts: "generate a hero image" does, while "build a
+  // picture of their work" or "I am pasting an image of a slide" do not.
+  const isImage = /\b(dall|midjourney)|\b(generat|creat|mak|design|draw|produc|render)\w*\s+(?:\S+\s+){0,4}?(image|logo|picture|illustration|photo)/.test(t);
   const chars = text.trim().length;
   const inputTokens = Math.max(1, Math.ceil(chars / 4));
   const outMult = has(bigOutput) ? 6 : 2;
@@ -1106,8 +1144,14 @@ function classify(text){
   if (isImage) { waterMl += 220; effort = 1; impact = 1; }
   const carbonG = energyWh * GRID_G_PER_WH;
 
-  let effortMin = Math.round((effort * 14) + (baseOutput/1000)*22) - (effort===1?10:0);
+  // Minutes come from how big the task is, not how long the description is:
+  // a pasted 300-word prompt used to score far more than a one-line summary
+  // of the same work. Length now adds at most 10 minutes.
+  let effortMin = { 1:8, 2:25, 3:45 }[effort] + Math.min(10, Math.round(chars / 100));
+  if (TASK_MINUTES[task]) effortMin = Math.round((effortMin + TASK_MINUTES[task]) / 2);
   if (isImage) effortMin = 3;
+  const stated = statedMinutes(t);
+  if (stated !== null) effortMin = stated;
 
   let waterScore = waterMl < 25 ? 1 : waterMl < 80 ? 2 : 3;
   const verdict = verdictFor(impact, effort, waterScore, isImage);
@@ -1800,13 +1844,47 @@ function renderAll(){
 }
 
 /* ============ Log Impact ============ */
-let showAllLogs = false;
+/* Two at a time keeps the list short; "Show more" adds a few more. */
+const LOGS_PAGE = 2;
+let logsShown = LOGS_PAGE;
+function roleOf(name){
+  const p = PROFILES.find(x=>x.name===name);
+  return p ? (p.admin ? "Executive Team" : p.role) : "";
+}
+/* Week 1 of the cycle is the week of the Governance tab's cycle start, or
+   w/b 5 Oct 2026 while that cell is blank. Weeks run Monday to Sunday. */
+const DEFAULT_WEEK1 = new Date(2026, 9, 5);
+const DAY_MS = 864e5;
+function week1Start(){ return mondayOf(GOV.cycleStart || DEFAULT_WEEK1); }
+function cycleWeekOf(ts){
+  if(!(ts instanceof Date) || isNaN(ts)) return 0;
+  // round, not floor: a week that spans the clocks changing is an hour short or long
+  return Math.round((mondayOf(ts) - week1Start()) / (7*DAY_MS)) + 1;
+}
+function fillWeekFilter(){
+  const sel = $("#lg-week"), keep = sel.value;
+  const last = Math.max(1, cycleWeekOf(new Date()), ...LOGS.map(l=>cycleWeekOf(l.ts)));
+  const opts = [];
+  for(let w=1; w<=last; w++) opts.push(`<option value="${w}">Week ${w}</option>`);
+  sel.innerHTML = `<option value="">All weeks</option>` + opts.join("");
+  sel.value = keep;
+}
+function initLogFilters(){
+  fillSelect($("#lg-role"), ROLES.filter(r=>r!=="Executive Team"), "All roles");
+  fillSelect($("#lg-project"), PROJECTS, "All projects");
+  fillSelect($("#lg-task"), TASK_TYPES, "All task types");
+  fillWeekFilter();
+  ["#lg-role","#lg-project","#lg-task","#lg-week"].forEach(s=>$(s).addEventListener("change", ()=>{ logsShown = LOGS_PAGE; renderLogs(); }));
+}
 function renderLogs(){
   const admin = !!(typeof currentUser !== "undefined" && currentUser && currentUser.admin);
-  const rows = LOGS.map((l,i)=>({l,i}));
-  const shown = admin && showAllLogs ? rows : rows.slice(0,6);
+  if($("#lg-week").options.length) fillWeekFilter();
+  const role = $("#lg-role").value, project = $("#lg-project").value, task = $("#lg-task").value, week = +$("#lg-week").value;
+  const rows = LOGS.map((l,i)=>({l,i})).filter(({l})=>
+    (!role || roleOf(l.name)===role) && (!project || l.project===project) && (!task || l.task===task) && (!week || cycleWeekOf(l.ts)===week));
+  const shown = rows.slice(0, logsShown);
   if(!shown.length){
-    $("#log-list").innerHTML = `<div class="note" style="padding:18px 14px;border:1px dashed var(--line);border-radius:var(--r-sm);text-align:center">No use cases logged yet. Log your first one above and it will show up here.</div>`;
+    $("#log-list").innerHTML = `<div class="note" style="padding:18px 14px;border:1px dashed var(--line);border-radius:var(--r-sm);text-align:center">${LOGS.length ? "No use cases match these filters." : "No use cases logged yet. Log your first one above and it will show up here."}</div>`;
     return;
   }
   $("#log-list").innerHTML = shown.map(({l,i})=>`
@@ -1819,10 +1897,15 @@ function renderLogs(){
       <div style="margin-top:6px;font-size:13px;color:var(--ink-2)">Saved ~${l.minutes} min · 💧 ~${l.water} mL · 🌫 ~${l.co2.toFixed(1)} g CO₂e</div>
       ${admin ? `<div style="margin-top:8px"><button class="btn ghost danger" style="padding:5px 14px;font-size:12px" data-del-log="${i}">Delete</button></div>` : ""}
     </div>`).join("")
-    + (admin && LOGS.length > 6 ? `<button class="btn ghost" id="toggle-all-logs" style="justify-self:start">${showAllLogs ? "Show fewer" : `Show all (${LOGS.length})`}</button>` : "");
+    + `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        ${rows.length > logsShown ? `<button class="btn ghost" id="more-logs" style="padding:7px 14px;font-size:13px">Show more</button>` : ""}
+        ${logsShown > LOGS_PAGE ? `<button class="btn ghost" id="fewer-logs" style="padding:7px 14px;font-size:13px">Show fewer</button>` : ""}
+        <span class="note">Showing ${shown.length} of ${rows.length}</span>
+      </div>`;
 }
 $("#log-list").addEventListener("click", e=>{
-  if(e.target.closest("#toggle-all-logs")){ showAllLogs = !showAllLogs; renderLogs(); return; }
+  if(e.target.closest("#more-logs")){ logsShown += 5; renderLogs(); return; }
+  if(e.target.closest("#fewer-logs")){ logsShown = LOGS_PAGE; renderLogs(); return; }
   const b = e.target.closest("[data-del-log]"); if(!b) return;
   const l = LOGS[+b.dataset.delLog]; if(!l) return;
   if(!confirm(`Delete ${l.name}'s use case${l.useCase ? ` "${l.useCase.slice(0,60)}"` : ""}? This can't be undone.`)) return;
@@ -1830,8 +1913,8 @@ $("#log-list").addEventListener("click", e=>{
   postToSheet("deleteLog", { Name:l.name, "Use case":l.useCase||"", Project:l.project, Tool:l.tool||"", Task:l.task||"", Minutes:l.minutes });
   renderAll(); toast("Use case deleted");
 });
-function estimateFor(text){
-  const est = classify(text);
+function estimateFor(text, task){
+  const est = classify(text, task);
   return { minutes: est.effortMin, water: Math.round(est.waterMl), co2: +est.carbonG.toFixed(1) };
 }
 
@@ -1862,35 +1945,80 @@ $("#save-tools").addEventListener("click", ()=>{
   renderToolsDonut();
   toast(`Saved tools for ${project}`);
 });
-/* Estimate as soon as they pause typing (or paste). */
-let estimateTimer;
-function showEstimate(){
-  const text = $("#lf-usecase").value.trim();
-  const box = $("#lf-estimate-result");
-  if(text.length < 8){ box.style.display = "none"; return; }
-  const e = estimateFor(text);
-  box.innerHTML = `
-    <span class="tag" style="background:var(--wash);color:var(--green-dk)">⏱ ~${e.minutes} min saved</span>
-    <span class="tag" style="background:#EAF4FB;color:var(--water)">💧 ~${e.water} mL water</span>
-    <span class="tag" style="background:#F3F0EA;color:var(--carbon)">🌫 ~${e.co2} g CO₂e</span>`;
-  box.style.display = "flex";
+/* Each use case is its own block, so several can be logged in one go. The
+   time saved is pre-filled from the estimate but stays editable: the person
+   who did the work knows better than any keyword match. Once they edit it,
+   later re-estimates leave their number alone. */
+function addLogEntry(){
+  const first = !$("#lf-entries .lf-entry");
+  const el = document.createElement("div");
+  el.className = "lf-entry";
+  el.innerHTML = `
+    <div class="lf-head"><label>What did you use AI for?</label>${first ? "" : `<button type="button" class="lf-remove">Remove</button>`}</div>
+    <textarea class="lf-usecase" placeholder="e.g. Synthesised 4 research reports into a structured market analysis for the client's fundraising strategy..." required></textarea>
+    <div class="row2">
+      <div><label>Tool used</label><select class="lf-tool"></select></div>
+      <div><label>Task type</label><select class="lf-task"></select></div>
+    </div>
+    <div class="lf-estimate" hidden>
+      <label>Suggested time saved (min)</label><input type="number" class="lf-minutes" min="0" max="1440" step="1">
+      <span class="tag lf-water" style="background:#EAF4FB;color:var(--water)"></span>
+      <span class="tag lf-co2" style="background:#F3F0EA;color:var(--carbon)"></span>
+      <span class="note lf-minutes-help" style="flex-basis:100%">If the suggested time saved seems inaccurate, please adjust it.</span>
+    </div>`;
+  fillSelect($(".lf-tool", el), TOOLS, "Not specified");
+  fillSelect($(".lf-task", el), TASK_TYPES, "Not specified");
+  let timer;
+  const rerun = ()=>{ clearTimeout(timer); timer = setTimeout(()=>showEstimate(el), 500); };
+  $(".lf-usecase", el).addEventListener("input", rerun);
+  $(".lf-task", el).addEventListener("change", ()=>showEstimate(el));
+  $(".lf-minutes", el).addEventListener("input", ()=>{ el.dataset.edited = "1"; });
+  const rm = $(".lf-remove", el);
+  if(rm) rm.addEventListener("click", ()=>{ el.remove(); updateLogSubmitLabel(); });
+  $("#lf-entries").appendChild(el);
+  updateLogSubmitLabel();
+  return el;
 }
-$("#lf-usecase").addEventListener("input", ()=>{ clearTimeout(estimateTimer); estimateTimer = setTimeout(showEstimate, 600); });
+function updateLogSubmitLabel(){
+  const n = $$("#lf-entries .lf-entry").length;
+  $("#lf-submit").textContent = n > 1 ? `Log these ${n} use cases` : "Log this use case";
+}
+function showEstimate(el){
+  const text = $(".lf-usecase", el).value.trim();
+  const box = $(".lf-estimate", el);
+  if(text.length < 8){ box.hidden = true; return; }
+  const e = estimateFor(text, $(".lf-task", el).value);
+  if(!el.dataset.edited) $(".lf-minutes", el).value = e.minutes;
+  $(".lf-water", el).textContent = `💧 ~${e.water} mL water`;
+  $(".lf-co2", el).textContent = `🌫 ~${e.co2} g CO₂e`;
+  box.hidden = false;
+}
+function resetLogEntries(){
+  $("#lf-entries").innerHTML = "";
+  addLogEntry();
+}
+$("#lf-add").addEventListener("click", ()=>{ $(".lf-usecase", addLogEntry()).focus(); });
 $("#log-form").addEventListener("submit", e=>{
   e.preventDefault();
   if($("#lf-hp").value.trim()){ return; }
-  const text = $("#lf-usecase").value.trim();
-  if(!text){ toast("Add a use case to log it"); return; }
-  const est = estimateFor(text);
+  const entries = $$("#lf-entries .lf-entry").filter(el=>$(".lf-usecase", el).value.trim());
+  if(!entries.length){ toast("Add a use case to log it"); return; }
   const mine = $("#id-name").textContent;
   const name = mine && mine !== "Not signed in" ? mine : "Anonymous";
   const project = $("#lf-project").value;
-  const tool = $("#lf-tool").value, task = $("#lf-task").value;
-  LOGS.unshift({ name, project, tool, task, useCase: text, minutes: est.minutes, water: est.water, co2: est.co2, ts: new Date(), date:"Today" });
-  postToSheet("log", { Name:name, Project:project, Tool:tool, Task:task, "Use case":text, Minutes:est.minutes, Water:est.water, CO2:est.co2 });
+  entries.forEach(el=>{
+    const text = $(".lf-usecase", el).value.trim();
+    const tool = $(".lf-tool", el).value, task = $(".lf-task", el).value;
+    const est = estimateFor(text, task);
+    const typed = parseInt($(".lf-minutes", el).value, 10);
+    const minutes = Number.isFinite(typed) && typed >= 0 ? Math.min(typed, 1440) : est.minutes;
+    LOGS.unshift({ name, project, tool, task, useCase: text, minutes, water: est.water, co2: est.co2, ts: new Date(), date:"Today" });
+    postToSheet("log", { Name:name, Project:project, Tool:tool, Task:task, "Use case":text, Minutes:minutes, Water:est.water, CO2:est.co2 });
+  });
+  logsShown = Math.max(LOGS_PAGE, entries.length);
   renderLogs(); renderAdmin(); renderLogImpactDash(); renderTicker(); renderStreak();
-  $("#lf-usecase").value=""; $("#lf-estimate-result").style.display="none";
-  toast("Use case logged, thank you");
+  resetLogEntries();
+  toast(entries.length > 1 ? `${entries.length} use cases logged, thank you` : "Use case logged, thank you");
 });
 
 /* ============ Streaks (personal) and the branch ticker (shared) ============ */
@@ -2106,6 +2234,53 @@ $("#nominees").addEventListener("click", async e=>{
     await loadMyVotes();
   }
 });
+/* One-off: entries logged before the editable time field went live carry the
+   old keyword estimate, so an admin can re-run the new one on them. Matching
+   in the Sheet is on Timestamp + Name (logs) and Name + Prompt + Achievement
+   (nominations). */
+const ESTIMATES_EDITABLE_FROM = new Date(2026, 9, 29);
+let SHEET_FEATURES = [];   // actions the deployed Apps Script says it supports
+const isOld = x => x.ts instanceof Date && !isNaN(x.ts) && x.ts < ESTIMATES_EDITABLE_FROM;
+$("#recalc-estimates").addEventListener("click", async ()=>{
+  if(!SESSION_PROOF){ toast("Set your own password first (Change password), then you can do this."); return; }
+  // An older script would file an unknown action as a blank nomination, so wait for the new one.
+  if(!SHEET_FEATURES.includes("updateEstimates")){ $("#recalc-status").textContent = "Deploy the updated Apps Script first (Deploy > Manage deployments > Edit > New version), then reload this page."; return; }
+  const logs = LOGS.filter(isOld).map(l=>({ l, e:estimateFor(l.useCase, l.task) }))
+    .filter(({l,e})=>e.minutes!==l.minutes || e.water!==l.water || e.co2!==l.co2);
+  const noms = [...SUBMISSIONS, ...ARCHIVED, ...WINNERS].filter(isOld).map(s=>({ s, e:nominationEstimate(s.prompt, s.achievement) }))
+    .filter(({s,e})=>e.hours!==s.hours);
+  if(!logs.length && !noms.length){ $("#recalc-status").textContent = "Everything is already on the new estimates."; return; }
+  if(!confirm(`Update the time saved on ${logs.length} use case(s) and ${noms.length} nomination(s) in the Sheet?`)) return;
+  $("#recalc-estimates").disabled = true; $("#recalc-status").textContent = "Updating the Sheet…";
+  const res = await callSheet("updateEstimates", {
+    AdminUser: usernameFor(currentUser.name), AdminProof: SESSION_PROOF,
+    logs: logs.map(({l,e})=>({ Timestamp:l.ts.toISOString(), Name:l.name, Minutes:e.minutes, Water:e.water, CO2:e.co2 })),
+    submissions: noms.map(({s,e})=>({ Name:s.name, Prompt:s.prompt, Achievement:s.achievement, Hours:e.hours, Pct:pctIncrease(e.hours*60),
+      Water:`~${(e.water/1000).toFixed(2)} L`, CO2:`~${Math.round(e.co2)} g` }))
+  });
+  $("#recalc-estimates").disabled = false;
+  if(!res || !res.ok){ $("#recalc-status").textContent = res && res.reason === "not allowed" ? "Only reset admins can do this." : "Couldn't reach the Sheet. Has the updated Apps Script been deployed?"; return; }
+  $("#recalc-status").textContent = `Updated ${res.logs} use case(s) and ${res.submissions} nomination row(s).`;
+  await loadSharedData();
+});
+
+/* Nominations are judged on the prompt and on what it achieved, which often
+   says how much time it saved ("saved me 3 hours"). */
+const NOMINATION_TASK = { "research and synthesis":"Research and synthesis", "report drafting":"Report drafting", "data analysis":"Data and analysis", "slide and comms work":"Slides and comms" };
+function nominationEstimate(prompt, achievement){
+  const e = estimateFor(`${prompt}\n${achievement}`, NOMINATION_TASK[deriveTask(prompt)]);
+  return { ...e, hours: +(e.minutes/60).toFixed(1) };
+}
+let sfTimer;
+function showNominationEstimate(){
+  const prompt = $("#sf-prompt").value.trim(), achievement = $("#sf-impact").value.trim();
+  const box = $("#sf-estimate");
+  if((prompt + achievement).length < 8){ box.hidden = true; return; }
+  if(!box.dataset.edited) $("#sf-hours").value = nominationEstimate(prompt, achievement).hours;
+  box.hidden = false;
+}
+["#sf-prompt","#sf-impact"].forEach(s=>$(s).addEventListener("input", ()=>{ clearTimeout(sfTimer); sfTimer = setTimeout(showNominationEstimate, 500); }));
+$("#sf-hours").addEventListener("input", ()=>{ $("#sf-estimate").dataset.edited = "1"; });
 $("#award-form").addEventListener("submit", async e=>{
   e.preventDefault();
   if($("#sf-hp").value.trim()){ return; }
@@ -2116,16 +2291,19 @@ $("#award-form").addEventListener("submit", async e=>{
   if(picked.reduce((a,f)=>a+f.size,0) > MAX_TOTAL_MB*1024*1024){ toast(`Attachments are over ${MAX_TOTAL_MB}MB in total`); return; }
   const files = picked.map(f=>({ name:f.name, url:URL.createObjectURL(f) }));
   const prompt = $("#sf-prompt").value;
-  const est = estimateFor(prompt);
   const name = $("#sf-name").value || "Anonymous", role = $("#sf-role").value, project = $("#sf-project").value;
   const achievement = $("#sf-impact").value, task = deriveTask(prompt);
-  const hours = +(est.minutes/60).toFixed(1), water = `~${(est.water/1000).toFixed(2)} L`, co2 = `~${Math.round(est.co2)} g`;
-  const pct = pctIncrease(est.minutes);
+  const est = nominationEstimate(prompt, achievement);
+  const typed = parseFloat($("#sf-hours").value);
+  const hours = Number.isFinite(typed) && typed >= 0 ? +Math.min(typed, 200).toFixed(1) : est.hours;
+  const water = `~${(est.water/1000).toFixed(2)} L`, co2 = `~${Math.round(est.co2)} g`;
+  const pct = pctIncrease(hours*60);
   SUBMISSIONS.unshift({ name, role, project, prompt, achievement, task, hours, water, co2, pct, votes:1, files });
   { const v = votedSet(); v.add(voteKey({ name, prompt, achievement })); saveVoted(v);
     if(ACCT_LOADED) postToSheet("recordVote", { Voter:voterId(), Key:voteKey({ name, prompt, achievement }) }); }
   renderNominees(); renderReview();
   $("#sf-prompt").value=""; $("#sf-impact").value=""; $("#sf-file").value="";
+  $("#sf-hours").value=""; delete $("#sf-estimate").dataset.edited; $("#sf-estimate").hidden = true;
   toast(files.length?`Nomination submitted with ${files.length} file(s)`:"Nomination submitted");
   try{
     const attachments = await Promise.all(picked.map(async f=>({ name:f.name, mime:f.type||"application/octet-stream", data:await readAsBase64(f) })));
@@ -2326,7 +2504,8 @@ function init(){
   checkResetHash();
   fillSelect($("#sf-role"), ROLES); fillSelect($("#sf-project"), PROJECTS);
   fillSelect($("#lf-project"), PROJECTS);
-  fillSelect($("#lf-tool"), TOOLS, "Not specified"); fillSelect($("#lf-task"), TASK_TYPES, "Not specified");
+  resetLogEntries();
+  initLogFilters();
   updateCount();
   renderReference();
   renderResetList();
